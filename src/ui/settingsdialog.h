@@ -19,19 +19,29 @@
 #ifndef SETTINGSDIALOG_H
 #define SETTINGSDIALOG_H
 
-#include <QDialog>
+#include <QWidget>
+
+class QLabel;
+class QButtonGroup;
+class QVBoxLayout;
 
 namespace Ui {
 class SettingsDialog;
 }
 
-class SettingsDialog : public QDialog
+class SettingsDialog : public QWidget
 {
     Q_OBJECT
 
 public:
     explicit SettingsDialog(QWidget *parent = nullptr);
     ~SettingsDialog() override;
+
+    void reloadFromSettings();
+
+Q_SIGNALS:
+    void cancelled();
+    void saved();
 
 private Q_SLOTS:
     void onCancelClicked();
@@ -40,11 +50,25 @@ private Q_SLOTS:
     void onSelectDownDirClicked();
     void onViewLogClicked();
     void onManageTlsTrustClicked();
+    void onGenerateTokenClicked();
+    void onParallelStreamsChanged(int value);
 
 private:
     void assign();
+    void setupStitchUi();
+    void reorganizeSettingsTabs();
+    void styleSettingsCards();
+    void addNetworkPortHints();
+    void addNetworkInfoBanner();
+    void setupParallelStreamsBadge();
+    void setupAuthTokenGenerate();
+    void setupThemeSelector();
+    void syncThemeButtons();
 
     Ui::SettingsDialog *ui;
+    QLabel* mParallelStreamsBadge{nullptr};
+    QVBoxLayout* mReliabilityLayout{nullptr};
+    QButtonGroup* mThemeButtonGroup{nullptr};
 };
 
 #endif // SETTINGSDIALOG_H

@@ -65,16 +65,16 @@ ReceiverSelectorDialog::ReceiverSelectorDialog(DeviceListModel* model, QWidget *
     ui->setupUi(this);
     resize(420, 360);
 
+    ui->label->setObjectName(QStringLiteral("dialogTitle"));
+    ui->label_multicast->setObjectName(QStringLiteral("hintLabel"));
+    ui->emptyLabel->setObjectName(QStringLiteral("receiverEmptyLabel"));
+    ui->pushButton->setProperty("primary", true);
+
     mProxyModel->setSourceModel(mModel);
     ui->listView->setModel(mProxyModel);
     ui->listView->setCurrentIndex(QModelIndex());
 
     ui->emptyLabel->hide();
-    {
-        QPalette pal = ui->emptyLabel->palette();
-        pal.setColor(QPalette::WindowText, palette().color(QPalette::PlaceholderText));
-        ui->emptyLabel->setPalette(pal);
-    }
 
     connect(ui->searchLineEdit, &QLineEdit::textChanged,
             this, &ReceiverSelectorDialog::onSearchTextChanged);

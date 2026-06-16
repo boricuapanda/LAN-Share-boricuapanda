@@ -23,11 +23,15 @@
 #include <QLabel>
 #include <QStackedWidget>
 #include <QSystemTrayIcon>
+#include <QToolButton>
 
 #include "model/transfertablemodel.h"
 #include "model/devicelistmodel.h"
 #include "transfer/devicebroadcaster.h"
 #include "transfer/transferserver.h"
+
+class TransferListPanel;
+class SettingsDialog;
 
 class QDragEnterEvent;
 class QDragMoveEvent;
@@ -67,30 +71,28 @@ private Q_SLOTS:
     void onSendFilesActionTriggered();
     void onSendFolderActionTriggered();
     void onSettingsActionTriggered();
+    void onTransfersActionTriggered();
     void onAboutActionTriggered();
     void onViewLogActionTriggered();
 
     void onNewReceiverAdded(Receiver* rec);
 
-    void onSenderTableDoubleClicked(const QModelIndex& index);
     void onSenderClearClicked();
     void onSenderCancelClicked();
     void onSenderPauseClicked();
     void onSenderResumeClicked();
 
-    void onReceiverTableDoubleClicked(const QModelIndex& index);
     void onReceiverClearClicked();
     void onReceiverCancelClicked();
     void onReceiverPauseClicked();
     void onReceiverResumeClicked();
 
-    void onSenderTableSelectionChanged(const QItemSelection& selected,
-                                       const QItemSelection& deselected);
-    void onReceiverTableSelectionChanged(const QItemSelection& selected,
-                                         const QItemSelection& deselected);
-
-    void onSenderTableContextMenuRequested(const QPoint& pos);
-    void onReceiverTableContextMenuRequested(const QPoint& pos);
+    void onSenderPanelSelectionChanged(int row);
+    void onReceiverPanelSelectionChanged(int row);
+    void onSenderPanelActivated(int row);
+    void onReceiverPanelActivated(int row);
+    void onSenderPanelContextMenu(const QPoint& globalPos, int row);
+    void onReceiverPanelContextMenu(const QPoint& globalPos, int row);
 
     void openSenderFileInCurrentIndex();
     void openSenderFolderInCurrentIndex();
@@ -117,16 +119,24 @@ private:
     void processSendQueue();
     int activeSenderCount() const;
     void connectSenderQueueSignals(TransferInfo* info);
-    void setupTableStacks();
-    void setupTablePolish();
+    void setupTransferPanels();
+    void setupContentStack();
+    void showTransfersView();
+    void showSettingsView();
+    void updateSidebarNavSelection(bool transfersActive);
+    QToolButton* createSidebarNavButton(const QString& text, const QIcon& icon, bool checkable);
+    void setupContentHeader();
+    void setupSidebarBranding();
     void setupAccessibility();
     void connectTransferModelSignals();
     void updateStatusBar();
     void scheduleUpdateStatusBar();
-    void updateEmptyStates();
     void onTransferRowsInserted(const QModelIndex& parent, int first, int last);
     void onTransferRowsRemoved(const QModelIndex& parent, int first, int last);
     static int countActiveTransfers(const TransferTableModel* model);
+    int currentSenderRow() const;
+    int currentReceiverRow() const;
+    void updateActiveBadge();
 
 #ifdef QT_TESTLIB_LIB
     friend class UiTest;
@@ -144,14 +154,24 @@ private:
     DeviceBroadcaster* mBroadcaster;
     TransferServer* mTransServer;
 
-    QStackedWidget* mSenderStack{nullptr};
-    QStackedWidget* mReceiverStack{nullptr};
+    TransferListPanel* mSenderPanel{nullptr};
+    TransferListPanel* mReceiverPanel{nullptr};
+    SettingsDialog* mSettingsPanel{nullptr};
+    QStackedWidget* mContentStack{nullptr};
+    QWidget* mTransfersPage{nullptr};
+    QWidget* mContentHeader{nullptr};
+    QLabel* mContentTitle{nullptr};
+    QToolButton* mNavTransfersBtn{nullptr};
+    QToolButton* mNavSettingsBtn{nullptr};
     QLabel* mStatusLabel{nullptr};
+    QLabel* mActiveBadge{nullptr};
+    QWidget* mHeaderSendButton{nullptr};
 
     QAction* mShowMainWindowAction;
     QAction* mSendFilesAction;
     QAction* mSendFolderAction;
     QAction* mSettingsAction;
+    QAction* mTransfersAction;
     QAction* mViewLogAction;
     QAction* mAboutAction;
     QAction* mAboutQtAction;

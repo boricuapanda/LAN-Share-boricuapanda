@@ -61,7 +61,15 @@ void TransferProgressWidget::changeEvent(QEvent* event)
 void TransferProgressWidget::updateStatsPalette()
 {
     QPalette pal = mStats->palette();
-    pal.setColor(QPalette::WindowText, palette().color(QPalette::PlaceholderText));
+    const TransferState state = mInfo->getState();
+
+    if (state == TransferState::Queued)
+        pal.setColor(QPalette::WindowText, QColor(0x14, 0xa3, 0xb8));
+    else if (state == TransferState::Failed)
+        pal.setColor(QPalette::WindowText, palette().color(QPalette::BrightText));
+    else
+        pal.setColor(QPalette::WindowText, palette().color(QPalette::PlaceholderText));
+
     mStats->setPalette(pal);
 }
 
@@ -72,6 +80,7 @@ void TransferProgressWidget::updateDisplay()
         mProgress->setValue(0);
         mProgress->setEnabled(false);
         mStats->setText(tr("Waiting in queue..."));
+        updateStatsPalette();
         return;
     }
 
@@ -83,8 +92,10 @@ void TransferProgressWidget::updateDisplay()
             mStats->setText(transferFailureReasonName(reason));
         else
             mStats->setText(tr("Failed"));
+        updateStatsPalette();
         return;
     }
 
     mStats->setText(mInfo->getSpeedText() + QStringLiteral("  ") + mInfo->getEtaText());
+    updateStatsPalette();
 }

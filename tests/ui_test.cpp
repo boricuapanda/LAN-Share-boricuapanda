@@ -14,6 +14,9 @@
 #include <QFile>
 #include <QEventLoop>
 #include <QTimer>
+#include <QAction>
+#include <QStackedWidget>
+#include <QSplitter>
 
 #include "settings.h"
 #include "model/device.h"
@@ -37,6 +40,7 @@ private Q_SLOTS:
     void initTestCase();
     void init();
     void mainWindowSmoke();
+    void mainWindowInlineSettingsNavigation();
     void mainWindowEmptyStateLabels();
     void uploadQueueMaxConcurrentTransfers();
     void settingsDialogWidgets();
@@ -137,8 +141,57 @@ void UiTest::mainWindowSmoke()
 {
     MainWindow window;
     QCOMPARE(window.windowTitle(), PROGRAM_NAME);
-    QVERIFY(window.findChild<QTableView*>(QStringLiteral("senderTableView")));
-    QVERIFY(window.findChild<QTableView*>(QStringLiteral("receiverTableView")));
+    QVERIFY(window.findChild<QWidget*>(QStringLiteral("senderTransferPanel")));
+    QVERIFY(window.findChild<QWidget*>(QStringLiteral("receiverTransferPanel")));
+    QVERIFY(window.findChild<QStackedWidget*>(QStringLiteral("mainContentStack")));
+    QVERIFY(window.findChild<QWidget*>(QStringLiteral("settingsPanel")));
+}
+
+void UiTest::mainWindowInlineSettingsNavigation()
+{
+    MainWindow window;
+    auto* stack = window.findChild<QStackedWidget*>(QStringLiteral("mainContentStack"));
+    auto* settingsPanel = window.findChild<QWidget*>(QStringLiteral("settingsPanel"));
+    auto* title = window.findChild<QLabel*>(QStringLiteral("contentTitle"));
+    auto* splitter = window.findChild<QSplitter*>(QStringLiteral("splitter"));
+    QVERIFY(stack);
+    QVERIFY(settingsPanel);
+    QVERIFY(title);
+    QVERIFY(splitter);
+    QCOMPARE(stack->currentWidget(), window.mTransfersPage);
+    QCOMPARE(splitter->parentWidget(), window.mTransfersPage);
+    QCOMPARE(title->text(), QStringLiteral("Transfers"));
+
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QCoreApplication::processEvents();
+    QVERIFY(settingsPanel->findChild<QCheckBox*>(QStringLiteral("overwriteCheckBox")));
+    QVERIFY(settingsPanel->findChild<QCheckBox*>(QStringLiteral("tlsCheckBox")));
+    QVERIFY(settingsPanel->findChild<QCheckBox*>(QStringLiteral("journalEnabledCheckBox")));
+
+    window.mSettingsAction->trigger();
+    QCOMPARE(stack->currentWidget(), settingsPanel);
+    QCOMPARE(title->text(), QStringLiteral("Settings"));
+    QVERIFY(window.mHeaderSendButton->isHidden());
+    QVERIFY(!window.mSettingsAction->isVisible());
+    QVERIFY(window.mTransfersAction->isVisible());
+
+    auto* cancelButton = settingsPanel->findChild<QPushButton*>(QStringLiteral("pushButton_2"));
+    QVERIFY(cancelButton);
+    cancelButton->click();
+    QCOMPARE(stack->currentWidget(), window.mTransfersPage);
+    QCOMPARE(title->text(), QStringLiteral("Transfers"));
+    QVERIFY(!window.mHeaderSendButton->isHidden());
+    QVERIFY(window.mSettingsAction->isVisible());
+    QVERIFY(!window.mTransfersAction->isVisible());
+
+    window.mSettingsAction->trigger();
+    QCOMPARE(stack->currentWidget(), settingsPanel);
+    auto* saveButton = settingsPanel->findChild<QPushButton*>(QStringLiteral("pushButton"));
+    QVERIFY(saveButton);
+    saveButton->click();
+    QCOMPARE(stack->currentWidget(), window.mTransfersPage);
+    QVERIFY(window.mSettingsAction->isVisible());
+    QVERIFY(!window.mTransfersAction->isVisible());
 }
 
 void UiTest::mainWindowEmptyStateLabels()

@@ -39,6 +39,7 @@ public:
         , mFinishColor(palette.color(QPalette::Link))
         , mFailureColor(palette.color(QPalette::BrightText))
         , mRetryColor(palette.color(QPalette::LinkVisited))
+        , mStartColor(QColor(0x1a, 0x6d, 0xaa))
     {
     }
 
@@ -48,6 +49,7 @@ protected:
         static const QRegularExpression finishRe(QStringLiteral("phase=finish"));
         static const QRegularExpression failureRe(QStringLiteral("phase=fail(?:ure|ed)"));
         static const QRegularExpression retryRe(QStringLiteral("phase=retry"));
+        static const QRegularExpression startRe(QStringLiteral("phase=start"));
 
         auto apply = [&](const QRegularExpression& re, const QColor& color) {
             QRegularExpressionMatchIterator it = re.globalMatch(text);
@@ -62,12 +64,14 @@ protected:
         apply(finishRe, mFinishColor);
         apply(failureRe, mFailureColor);
         apply(retryRe, mRetryColor);
+        apply(startRe, mStartColor);
     }
 
 private:
     QColor mFinishColor;
     QColor mFailureColor;
     QColor mRetryColor;
+    QColor mStartColor;
 };
 
 } // namespace
@@ -93,25 +97,14 @@ void LogViewerDialog::setupUi()
     auto* layout = new QVBoxLayout(this);
 
     mPathLabel = new QLabel(AppLog::logFilePath(), this);
+    mPathLabel->setObjectName(QStringLiteral("hintLabel"));
     mPathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    {
-        QPalette pal = mPathLabel->palette();
-        pal.setColor(QPalette::WindowText, palette().color(QPalette::PlaceholderText));
-        mPathLabel->setPalette(pal);
-    }
     layout->addWidget(mPathLabel);
 
     mStatsLabel = new QLabel(this);
+    mStatsLabel->setObjectName(QStringLiteral("dialogTitle"));
     mStatsLabel->setWordWrap(true);
     mStatsLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    {
-        QPalette pal = mStatsLabel->palette();
-        pal.setColor(QPalette::WindowText, palette().color(QPalette::WindowText));
-        mStatsLabel->setPalette(pal);
-        QFont font = mStatsLabel->font();
-        font.setBold(true);
-        mStatsLabel->setFont(font);
-    }
     layout->addWidget(mStatsLabel);
 
     auto* filterRow = new QHBoxLayout();
@@ -130,6 +123,7 @@ void LogViewerDialog::setupUi()
     layout->addLayout(filterRow);
 
     mLogView = new QPlainTextEdit(this);
+    mLogView->setObjectName(QStringLiteral("logView"));
     mLogView->setReadOnly(true);
     mLogView->setLineWrapMode(QPlainTextEdit::NoWrap);
     mLogView->setFont(QFont(QStringLiteral("Monospace"), 9));
@@ -140,6 +134,7 @@ void LogViewerDialog::setupUi()
     auto* refreshBtn = new QPushButton(tr("Refresh"), this);
     auto* openFolderBtn = new QPushButton(tr("Open Folder"), this);
     auto* closeBtn = new QPushButton(tr("Close"), this);
+    closeBtn->setProperty("primary", true);
     closeBtn->setDefault(true);
 
     buttons->addWidget(refreshBtn);

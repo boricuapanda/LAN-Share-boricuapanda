@@ -13,13 +13,23 @@ Living changelog for modifications made to this fork. Update this file whenever 
 ### What was added
 - **Theme:** System / Light / Dark selector in Settings (persists across sessions)
 - **UiTheme:** Shared QSS from `app.qss`, Fusion palette for Light/Dark, palette-aware transfer state colors
-- **TransferProgressWidget:** Inline progress bar with queued/failed state display on upload and download tables
+- **Card-based transfers:** `TransferListPanel` + `TransferCardWidget` replace visible table rows for uploads and downloads — each card shows filename, peer, progress bar, speed/ETA, and state badges (queued, failed, done, etc.)
+- **TransferProgressWidget:** Earlier inline progress widget for table cells; kept in the tree but superseded by transfer cards in the main window
+- **Main window chrome:** “Transfers” content header with active-count badge; **Send** button in the header (files/folders menu); left sidebar with branding (logo, version, device/IP) and nav (Transfers, Log Viewer, Settings, About)
 - **Status bar:** Listening port, TLS indicator, and active upload/download counts
-- **Empty states:** Placeholder labels when upload or download tables have no rows
-- **Drag-and-drop send:** Drop files or folders onto the upload pane to queue a transfer
+- **Empty states:** Placeholder labels inside each transfer panel when there are no uploads or downloads
+- **Drag-and-drop send:** Drop files or folders onto the upload panel to queue a transfer
 - **Receiver picker:** Search filter and resizable dialog for peer selection
 - **Log viewer:** Phase filter (all / start / finish / failure / retry / recovery) and syntax highlighting
 - **Icons:** Freedesktop theme icons via `UiTheme::themedIcon()` with bundled PNG fallback
+
+### UI polish pass (2026-06)
+- Brand QSS extended to dialogs, tabs, inputs, buttons, lists, scrollbars, menus, and tooltips
+- Primary action buttons (`Save`, `Send`, `Close`) styled in brand blue
+- Transfer cards and sections framed with rounded borders; selected/queued/failed card states in QSS
+- Settings dialog reorganized into Stitch-style tabs (General, Network, Security, Reliability, Storage) with card sections, port default hints, and parallel-streams badge
+- Log viewer monospace panel, phase syntax highlighting includes `start`
+- Card progress and badge colors: teal for active/queued, red for failed
 
 ### Tests
 - `transfer_test`: 34 tests

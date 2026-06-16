@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>SettingsDialog</class>
- <widget class="QDialog" name="SettingsDialog">
+ <widget class="QWidget" name="SettingsDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -716,7 +716,6 @@
            </layout>
           </item>
          </layout>
-         <zorder></zorder>
         </widget>
        </item>
        <item>

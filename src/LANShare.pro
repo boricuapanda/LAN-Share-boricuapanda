@@ -25,6 +25,8 @@ SOURCES += main.cpp\
     ui/tlstrustdialog.cpp \
     ui/uitheme.cpp \
     ui/transferprogresswidget.cpp \
+    ui/transfercardwidget.cpp \
+    ui/transferlistpanel.cpp \
     transfer/devicebroadcaster.cpp \
     transfer/receiver.cpp \
     transfer/sender.cpp \
@@ -50,6 +52,8 @@ HEADERS += settings.h \
     ui/tlstrustdialog.h \
     ui/uitheme.h \
     ui/transferprogresswidget.h \
+    ui/transfercardwidget.h \
+    ui/transferlistpanel.h \
     transfer/devicebroadcaster.h \
     transfer/receiver.h \
     transfer/sender.h \

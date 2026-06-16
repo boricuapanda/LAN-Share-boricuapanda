@@ -39,6 +39,7 @@ TlsTrustDialog::TlsTrustDialog(QWidget* parent)
     auto* removeBtn = new QPushButton(tr("Remove Selected"), this);
     auto* clearAllBtn = new QPushButton(tr("Clear All"), this);
     auto* closeBtn = new QPushButton(tr("Close"), this);
+    closeBtn->setProperty("primary", true);
     closeBtn->setDefault(true);
     buttonRow->addWidget(copyBtn);
     buttonRow->addWidget(exportBtn);
