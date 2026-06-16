@@ -42,6 +42,8 @@ constexpr int PROGRAM_Y_VER{2};
 constexpr int PROGRAM_Z_VER{3};
 const QString SETTINGS_FILE{"LANSConfig"};
 
+enum class UiThemeMode { System, Light, Dark };
+
 class Settings
 {
 public:
@@ -73,6 +75,7 @@ public:
     int getTransferOffsetAckTimeoutMs() const;
     bool getJournalEnabled() const;
     int getJournalRetentionDays() const;
+    UiThemeMode getUiTheme() const;
 
     void setDeviceName(const QString& name);
     void setBroadcastPort(quint16 port);
@@ -96,6 +99,7 @@ public:
     void setTransferOffsetAckTimeoutMs(int ms);
     void setJournalEnabled(bool enabled);
     void setJournalRetentionDays(int days);
+    void setUiTheme(UiThemeMode mode);
 
     void saveSettings();
     void reset();
@@ -128,6 +132,7 @@ private:
     int mTransferOffsetAckTimeoutMs{30000};
     bool mJournalEnabled{true};
     int mJournalRetentionDays{7};
+    UiThemeMode mUiTheme{UiThemeMode::System};
 
     static Settings* obj;
 };

@@ -17,6 +17,7 @@
 */
 
 #include <QMessageBox>
+#include <QSortFilterProxyModel>
 
 #include "receiverselectordialog.h"
 #include "ui_receiverselectordialog.h"
@@ -24,17 +25,70 @@
 #include "model/devicelistmodel.h"
 #include "model/device.h"
 
+namespace {
+
+class DeviceFilterProxyModel : public QSortFilterProxyModel
+{
+public:
+    explicit DeviceFilterProxyModel(QObject* parent = nullptr)
+        : QSortFilterProxyModel(parent)
+    {
+        setFilterCaseSensitivity(Qt::CaseInsensitive);
+    }
+
+protected:
+    bool filterAcceptsRow(int sourceRow, const QModelIndex& /*sourceParent*/) const override
+    {
+        if (filterRegularExpression().pattern().isEmpty())
+            return true;
+
+        const auto* model = static_cast<const DeviceListModel*>(sourceModel());
+        if (!model)
+            return false;
+
+        const Device dev = model->device(sourceRow);
+        const QString haystack = dev.getName() + QLatin1Char(' ')
+                + dev.getAddress().toString() + QLatin1Char(' ')
+                + dev.getOSName();
+        return haystack.contains(filterRegularExpression());
+    }
+};
+
+} // namespace
+
 ReceiverSelectorDialog::ReceiverSelectorDialog(DeviceListModel* model, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::ReceiverSelectorDialog),
-    mModel(model)
+    mModel(model),
+    mProxyModel(new DeviceFilterProxyModel(this))
 {
     ui->setupUi(this);
+    resize(420, 360);
 
-    ui->listView->setModel(mModel);
+    mProxyModel->setSourceModel(mModel);
+    ui->listView->setModel(mProxyModel);
     ui->listView->setCurrentIndex(QModelIndex());
 
+    ui->emptyLabel->hide();
+    {
+        QPalette pal = ui->emptyLabel->palette();
+        pal.setColor(QPalette::WindowText, palette().color(QPalette::PlaceholderText));
+        ui->emptyLabel->setPalette(pal);
+    }
+
+    connect(ui->searchLineEdit, &QLineEdit::textChanged,
+            this, &ReceiverSelectorDialog::onSearchTextChanged);
+    connect(mProxyModel, &QAbstractItemModel::rowsInserted,
+            this, &ReceiverSelectorDialog::updateEmptyLabel);
+    connect(mProxyModel, &QAbstractItemModel::rowsRemoved,
+            this, &ReceiverSelectorDialog::updateEmptyLabel);
+    connect(mProxyModel, &QAbstractItemModel::modelReset,
+            this, &ReceiverSelectorDialog::updateEmptyLabel);
+    connect(mProxyModel, &QAbstractItemModel::layoutChanged,
+            this, &ReceiverSelectorDialog::updateEmptyLabel);
+
     model->refresh();
+    updateEmptyLabel();
 }
 
 ReceiverSelectorDialog::~ReceiverSelectorDialog()
@@ -44,26 +98,32 @@ ReceiverSelectorDialog::~ReceiverSelectorDialog()
 
 Device ReceiverSelectorDialog::getSelectedDevice() const
 {
-    QModelIndex currIndex = ui->listView->currentIndex();
-    if (currIndex.isValid()) {
-        return mModel->device(currIndex.row());
-    }
+    const QModelIndex currIndex = ui->listView->currentIndex();
+    if (!currIndex.isValid())
+        return Device();
 
-    return Device();
+    const QModelIndex sourceIndex = mProxyModel->mapToSource(currIndex);
+    if (!sourceIndex.isValid())
+        return Device();
+
+    return mModel->device(sourceIndex.row());
 }
 
 QVector<Device> ReceiverSelectorDialog::getSelectedDevices() const
 {
     QVector<Device> devices;
     QItemSelectionModel* selModel = ui->listView->selectionModel();
-    if (selModel) {
+    if (!selModel)
+        return devices;
 
-        QModelIndexList selected = selModel->selectedIndexes();
-        for (auto selectedIndex : selected) {
-            if (selectedIndex.isValid()) {
-                devices.push_back(mModel->device(selectedIndex.row()));
-            }
-        }
+    const QModelIndexList selected = selModel->selectedIndexes();
+    for (const QModelIndex& selectedIndex : selected) {
+        if (!selectedIndex.isValid())
+            continue;
+
+        const QModelIndex sourceIndex = mProxyModel->mapToSource(selectedIndex);
+        if (sourceIndex.isValid())
+            devices.push_back(mModel->device(sourceIndex.row()));
     }
 
     return devices;
@@ -71,8 +131,7 @@ QVector<Device> ReceiverSelectorDialog::getSelectedDevices() const
 
 void ReceiverSelectorDialog::onSendClicked()
 {
-    QModelIndex currIndex = ui->listView->currentIndex();
-    if (currIndex.isValid())
+    if (ui->listView->currentIndex().isValid())
         accept();
     else
         QMessageBox::information(this, tr("Info"), tr("Please select receivers."));
@@ -81,4 +140,18 @@ void ReceiverSelectorDialog::onSendClicked()
 void ReceiverSelectorDialog::onRefreshClicked()
 {
     mModel->refresh();
+    updateEmptyLabel();
+}
+
+void ReceiverSelectorDialog::onSearchTextChanged(const QString& text)
+{
+    mProxyModel->setFilterFixedString(text);
+    updateEmptyLabel();
+}
+
+void ReceiverSelectorDialog::updateEmptyLabel()
+{
+    const bool showEmpty = mProxyModel->rowCount() == 0;
+    ui->emptyLabel->setVisible(showEmpty);
+    ui->listView->setVisible(!showEmpty);
 }

@@ -1,4 +1,5 @@
 #include <QtTest>
+#include <QComboBox>
 #include <QApplication>
 #include <QPushButton>
 #include <QSpinBox>
@@ -21,6 +22,10 @@
 #include "ui/settingsdialog.h"
 #include "ui/logviewerdialog.h"
 #include "ui/tlstrustdialog.h"
+#include "ui/receiverselectordialog.h"
+#include "ui/uitheme.h"
+#include "transfer/devicebroadcaster.h"
+#include "model/devicelistmodel.h"
 
 class UiTest : public QObject
 {
@@ -32,12 +37,16 @@ private Q_SLOTS:
     void initTestCase();
     void init();
     void mainWindowSmoke();
+    void mainWindowEmptyStateLabels();
     void uploadQueueMaxConcurrentTransfers();
     void settingsDialogWidgets();
     void settingsParallelStreamsRoundTrip();
+    void settingsThemeRoundTrip();
     void settingsTlsAndAuthWidgets();
     void settingsReliabilityWidgets();
     void logViewerDialogSmoke();
+    void logViewerPhaseFilter();
+    void receiverSelectorSearchField();
     void tlsTrustDialogSmoke();
 };
 
@@ -132,6 +141,13 @@ void UiTest::mainWindowSmoke()
     QVERIFY(window.findChild<QTableView*>(QStringLiteral("receiverTableView")));
 }
 
+void UiTest::mainWindowEmptyStateLabels()
+{
+    MainWindow window;
+    QVERIFY(window.findChild<QLabel*>(QStringLiteral("senderEmptyLabel")));
+    QVERIFY(window.findChild<QLabel*>(QStringLiteral("receiverEmptyLabel")));
+}
+
 void UiTest::settingsDialogWidgets()
 {
     SettingsDialog dialog;
@@ -178,6 +194,20 @@ void UiTest::settingsParallelStreamsRoundTrip()
 
     settings->setParallelStreams(previous);
     settings->saveSettings();
+}
+
+void UiTest::settingsThemeRoundTrip()
+{
+    Settings* settings = Settings::instance();
+    SettingsDialog dialog;
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("themeComboBox"));
+    auto* saveButton = dialog.findChild<QPushButton*>(QStringLiteral("pushButton"));
+    QVERIFY(combo);
+    QVERIFY(saveButton);
+
+    combo->setCurrentIndex(2);
+    saveButton->click();
+    QCOMPARE(settings->getUiTheme(), UiThemeMode::Dark);
 }
 
 void UiTest::settingsTlsAndAuthWidgets()
@@ -232,6 +262,20 @@ void UiTest::logViewerDialogSmoke()
     LogViewerDialog dialog;
     QCOMPARE(dialog.windowTitle(), QStringLiteral("Transfer Log"));
     QVERIFY(dialog.findChild<QPlainTextEdit*>());
+}
+
+void UiTest::logViewerPhaseFilter()
+{
+    LogViewerDialog dialog;
+    QVERIFY(dialog.findChild<QComboBox*>(QStringLiteral("phaseFilterComboBox")));
+}
+
+void UiTest::receiverSelectorSearchField()
+{
+    DeviceBroadcaster broadcaster;
+    DeviceListModel model(&broadcaster);
+    ReceiverSelectorDialog dialog(&model);
+    QVERIFY(dialog.findChild<QLineEdit*>(QStringLiteral("searchLineEdit")));
 }
 
 void UiTest::tlsTrustDialogSmoke()

@@ -8,14 +8,20 @@
     (at your option) any later version.
 */
 
+#include <QFont>
+#include <QComboBox>
 #include <QDesktopServices>
 #include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPalette>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
+#include <QSyntaxHighlighter>
+#include <QTextCharFormat>
 #include <QTextCursor>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -23,8 +29,56 @@
 #include "logviewerdialog.h"
 #include "log.h"
 
+namespace {
+
+class LogSyntaxHighlighter : public QSyntaxHighlighter
+{
+public:
+    LogSyntaxHighlighter(QTextDocument* document, const QPalette& palette)
+        : QSyntaxHighlighter(document)
+        , mFinishColor(palette.color(QPalette::Link))
+        , mFailureColor(palette.color(QPalette::BrightText))
+        , mRetryColor(palette.color(QPalette::LinkVisited))
+    {
+    }
+
+protected:
+    void highlightBlock(const QString& text) override
+    {
+        static const QRegularExpression finishRe(QStringLiteral("phase=finish"));
+        static const QRegularExpression failureRe(QStringLiteral("phase=fail(?:ure|ed)"));
+        static const QRegularExpression retryRe(QStringLiteral("phase=retry"));
+
+        auto apply = [&](const QRegularExpression& re, const QColor& color) {
+            QRegularExpressionMatchIterator it = re.globalMatch(text);
+            QTextCharFormat format;
+            format.setForeground(color);
+            while (it.hasNext()) {
+                const QRegularExpressionMatch match = it.next();
+                setFormat(match.capturedStart(), match.capturedLength(), format);
+            }
+        };
+
+        apply(finishRe, mFinishColor);
+        apply(failureRe, mFailureColor);
+        apply(retryRe, mRetryColor);
+    }
+
+private:
+    QColor mFinishColor;
+    QColor mFailureColor;
+    QColor mRetryColor;
+};
+
+} // namespace
+
 LogViewerDialog::LogViewerDialog(QWidget* parent)
-    : QDialog(parent), mLogView(nullptr), mStatsLabel(nullptr), mWatcher(new QFileSystemWatcher(this))
+    : QDialog(parent)
+    , mLogView(nullptr)
+    , mStatsLabel(nullptr)
+    , mPathLabel(nullptr)
+    , mPhaseFilter(nullptr)
+    , mWatcher(new QFileSystemWatcher(this))
 {
     setupUi();
     connect(mWatcher, &QFileSystemWatcher::fileChanged, this, &LogViewerDialog::onLogFileChanged);
@@ -38,21 +92,48 @@ void LogViewerDialog::setupUi()
 
     auto* layout = new QVBoxLayout(this);
 
-    auto* pathLabel = new QLabel(AppLog::logFilePath(), this);
-    pathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    pathLabel->setStyleSheet(QStringLiteral("color: #666;"));
-    layout->addWidget(pathLabel);
+    mPathLabel = new QLabel(AppLog::logFilePath(), this);
+    mPathLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    {
+        QPalette pal = mPathLabel->palette();
+        pal.setColor(QPalette::WindowText, palette().color(QPalette::PlaceholderText));
+        mPathLabel->setPalette(pal);
+    }
+    layout->addWidget(mPathLabel);
 
     mStatsLabel = new QLabel(this);
     mStatsLabel->setWordWrap(true);
     mStatsLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    mStatsLabel->setStyleSheet(QStringLiteral("color: #333; font-weight: bold;"));
+    {
+        QPalette pal = mStatsLabel->palette();
+        pal.setColor(QPalette::WindowText, palette().color(QPalette::WindowText));
+        mStatsLabel->setPalette(pal);
+        QFont font = mStatsLabel->font();
+        font.setBold(true);
+        mStatsLabel->setFont(font);
+    }
     layout->addWidget(mStatsLabel);
+
+    auto* filterRow = new QHBoxLayout();
+    auto* filterLabel = new QLabel(tr("Phase:"), this);
+    mPhaseFilter = new QComboBox(this);
+    mPhaseFilter->setObjectName(QStringLiteral("phaseFilterComboBox"));
+    mPhaseFilter->addItem(tr("All"), QString());
+    mPhaseFilter->addItem(tr("start"), QStringLiteral("start"));
+    mPhaseFilter->addItem(tr("finish"), QStringLiteral("finish"));
+    mPhaseFilter->addItem(tr("failure"), QStringLiteral("failed"));
+    mPhaseFilter->addItem(tr("retry"), QStringLiteral("retry"));
+    mPhaseFilter->addItem(tr("recovery"), QStringLiteral("recovery"));
+    filterRow->addWidget(filterLabel);
+    filterRow->addWidget(mPhaseFilter);
+    filterRow->addStretch();
+    layout->addLayout(filterRow);
 
     mLogView = new QPlainTextEdit(this);
     mLogView->setReadOnly(true);
     mLogView->setLineWrapMode(QPlainTextEdit::NoWrap);
     mLogView->setFont(QFont(QStringLiteral("Monospace"), 9));
+    new LogSyntaxHighlighter(mLogView->document(), palette());
     layout->addWidget(mLogView);
 
     auto* buttons = new QHBoxLayout();
@@ -70,12 +151,32 @@ void LogViewerDialog::setupUi()
     connect(refreshBtn, &QPushButton::clicked, this, &LogViewerDialog::reloadLog);
     connect(openFolderBtn, &QPushButton::clicked, this, &LogViewerDialog::openLogFolder);
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+    connect(mPhaseFilter, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &LogViewerDialog::reloadLog);
+}
+
+QString LogViewerDialog::filterLogContent(const QString& content) const
+{
+    const QString phase = mPhaseFilter->currentData().toString();
+    if (phase.isEmpty())
+        return content;
+
+    const QString needle = QStringLiteral("phase=%1").arg(phase);
+    QStringList filtered;
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    for (const QString& line : lines) {
+        if (line.contains(needle))
+            filtered.append(line);
+    }
+
+    return filtered.join(QLatin1Char('\n'));
 }
 
 void LogViewerDialog::reloadLog()
 {
     const QString path = AppLog::logFilePath();
-    const QString content = AppLog::readTail();
+    const QString rawContent = AppLog::readTail();
+    const QString content = filterLogContent(rawContent);
 
     if (mWatcher->files() != QStringList{path}) {
         if (!mWatcher->files().isEmpty())

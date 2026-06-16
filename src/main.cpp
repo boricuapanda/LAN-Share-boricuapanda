@@ -21,6 +21,7 @@
 
 #include "settings.h"
 #include "ui/mainwindow.h"
+#include "ui/uitheme.h"
 #include "singleinstance.h"
 #include "util.h"
 #include "log.h"
@@ -32,6 +33,7 @@ int main(int argc, char *argv[])
         QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
 
     QApplication app(argc, argv);
+    UiTheme::apply(&app);
     app.setQuitOnLastWindowClosed(false);
     AppLog::install();
 
@@ -55,6 +57,8 @@ int main(int argc, char *argv[])
     app.setApplicationVersion(Util::parseAppVersion());
 
     MainWindow mainWindow;
+    if (!recoverySummary.isEmpty())
+        mainWindow.showStartupMessage(recoverySummary);
     mainWindow.show();
 
     QObject::connect(&si, &SingleInstance::newInstanceCreated, [&mainWindow]() {

@@ -16,41 +16,32 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef RECEIVERSELECTORDIALOG_H
-#define RECEIVERSELECTORDIALOG_H
+#ifndef TRANSFERPROGRESSWIDGET_H
+#define TRANSFERPROGRESSWIDGET_H
 
-#include <QDialog>
+#include <QWidget>
 
-class QSortFilterProxyModel;
-class DeviceListModel;
-class Device;
+class QLabel;
+class QProgressBar;
+class TransferInfo;
 
-namespace Ui {
-class ReceiverSelectorDialog;
-}
-
-class ReceiverSelectorDialog : public QDialog
+class TransferProgressWidget : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit ReceiverSelectorDialog(DeviceListModel* model, QWidget *parent = nullptr);
-    ~ReceiverSelectorDialog() override;
+    explicit TransferProgressWidget(TransferInfo* info, QWidget* parent = nullptr);
 
-    Device getSelectedDevice() const;
-    QVector<Device> getSelectedDevices() const;
-
-private Q_SLOTS:
-    void onSendClicked();
-    void onRefreshClicked();
-    void onSearchTextChanged(const QString& text);
-    void updateEmptyLabel();
+protected:
+    void changeEvent(QEvent* event) override;
 
 private:
-    Ui::ReceiverSelectorDialog *ui;
+    void updateDisplay();
+    void updateStatsPalette();
 
-    DeviceListModel* mModel;
-    QSortFilterProxyModel* mProxyModel;
+    TransferInfo* mInfo;
+    QProgressBar* mProgress;
+    QLabel* mStats;
 };
 
-#endif // RECEIVERSELECTORDIALOG_H
+#endif // TRANSFERPROGRESSWIDGET_H

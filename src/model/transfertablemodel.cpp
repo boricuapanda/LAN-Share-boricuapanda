@@ -20,6 +20,9 @@
 #include "transfertablemodel.h"
 #include "util.h"
 #include "transferfailure.h"
+#include "ui/uitheme.h"
+
+#include <QApplication>
 
 TransferTableModel::TransferTableModel(QObject *parent) :
     QAbstractTableModel(parent)
@@ -172,7 +175,7 @@ QString TransferTableModel::getStateString(TransferState state, TransferFailureR
     case TransferState::Disconnected : return tr("Disconnected");
     case TransferState::Paused : return tr("Paused");
     case TransferState::Cancelled : return tr("Cancelled");
-    case TransferState::Transfering : return tr("Transfering");
+    case TransferState::Transfering : return tr("Transferring");
     case TransferState::Finish : return tr("Finish");
     case TransferState::Failed : {
         if (reason != TransferFailureReason::None)
@@ -186,17 +189,5 @@ QString TransferTableModel::getStateString(TransferState state, TransferFailureR
 
 QColor TransferTableModel::getStateColor(TransferState state) const
 {
-    switch (state) {
-    case TransferState::Idle : return QColor("black");
-    case TransferState::Queued : return QColor("#888800");
-    case TransferState::Waiting : return QColor("orange");
-    case TransferState::Disconnected : return QColor("red");
-    case TransferState::Paused : return QColor("orange");
-    case TransferState::Cancelled : return QColor("red");
-    case TransferState::Transfering : return QColor("blue");
-    case TransferState::Finish : return QColor("green");
-    case TransferState::Failed : return QColor("red");
-    }
-
-    return QColor();
+    return UiTheme::stateColor(state, QApplication::palette());
 }

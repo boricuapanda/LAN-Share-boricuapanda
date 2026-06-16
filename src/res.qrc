@@ -19,5 +19,6 @@
         <file>img/systray-icon.png</file>
         <file>img/file.png</file>
         <file>img/folder.png</file>
+        <file>style/app.qss</file>
     </qresource>
 </RCC>

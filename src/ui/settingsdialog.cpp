@@ -23,11 +23,15 @@
 #include "util.h"
 #include "ui/logviewerdialog.h"
 #include "ui/tlstrustdialog.h"
+#include "ui/uitheme.h"
 #include "log.h"
 #include "transfer/tlshelper.h"
+#include <QApplication>
 #include <QMessageBox>
+#include <QLabel>
 #include <QScrollArea>
 #include <QFrame>
+#include <QVBoxLayout>
 
 namespace {
 
@@ -55,12 +59,58 @@ void makeTabsScrollable(QTabWidget* tabWidget)
 
 } // namespace
 
+namespace {
+
+UiThemeMode themeModeFromComboIndex(int index)
+{
+    switch (index) {
+    case 1:
+        return UiThemeMode::Light;
+    case 2:
+        return UiThemeMode::Dark;
+    default:
+        return UiThemeMode::System;
+    }
+}
+
+int comboIndexFromThemeMode(UiThemeMode mode)
+{
+    switch (mode) {
+    case UiThemeMode::Light:
+        return 1;
+    case UiThemeMode::Dark:
+        return 2;
+    case UiThemeMode::System:
+    default:
+        return 0;
+    }
+}
+
+void addUnlimitedHint(QVBoxLayout* layout, QLayout* afterLayout)
+{
+    const int idx = layout->indexOf(afterLayout);
+    if (idx < 0)
+        return;
+
+    auto* hint = new QLabel(QObject::tr("0 = unlimited"));
+    QFont font = hint->font();
+    font.setPointSize(qMax(7, font.pointSize() - 1));
+    hint->setFont(font);
+    hint->setStyleSheet(QStringLiteral("color: palette(mid);"));
+    layout->insertWidget(idx + 1, hint);
+}
+
+} // namespace
+
 SettingsDialog::SettingsDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::SettingsDialog)
 {
     ui->setupUi(this);
     makeTabsScrollable(ui->tabWidget);
+    addUnlimitedHint(ui->verticalLayout_3, ui->horizontalLayout_5);
+    addUnlimitedHint(ui->verticalLayout_3, ui->horizontalLayout_maxDownloads);
+    addUnlimitedHint(ui->verticalLayout_3, ui->horizontalLayout_retryMax);
     resize(500, 720);
     setMinimumSize(480, 560);
     assign();
@@ -106,8 +156,10 @@ void SettingsDialog::onSaveClicked()
     set->setTransferIdleTimeoutMs(ui->transferIdleTimeoutSpinBox->value() * 1000);
     set->setMaxPacketSize(ui->maxPacketSizeSpinBox->value() * 1024);
     set->setTransferOffsetAckTimeoutMs(ui->offsetAckTimeoutSpinBox->value() * 1000);
+    set->setUiTheme(themeModeFromComboIndex(ui->themeComboBox->currentIndex()));
 
     set->saveSettings();
+    UiTheme::apply(qApp);
 
     accept();
 }
@@ -116,6 +168,7 @@ void SettingsDialog::onResetClicked()
 {
     Settings::instance()->reset();
     assign();
+    UiTheme::apply(qApp);
 }
 
 void SettingsDialog::onSelectDownDirClicked()
@@ -172,6 +225,7 @@ void SettingsDialog::assign()
     ui->transferIdleTimeoutSpinBox->setValue(sets->getTransferIdleTimeoutMs() / 1000);
     ui->maxPacketSizeSpinBox->setValue(sets->getMaxPacketSize() / 1024);
     ui->offsetAckTimeoutSpinBox->setValue(sets->getTransferOffsetAckTimeoutMs() / 1000);
+    ui->themeComboBox->setCurrentIndex(comboIndexFromThemeMode(sets->getUiTheme()));
     ui->logPathLabel->setText(AppLog::logFilePath());
     ui->tlsPinnedCountLabel->setText(tr("Pinned peers: %1").arg(TlsHelper::pinnedPeerCount()));
 }

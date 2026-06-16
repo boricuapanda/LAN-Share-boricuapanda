@@ -73,7 +73,7 @@ QVariant DeviceListModel::data(const QModelIndex &index, int role) const
         Device dev = mDevices[index.row()];
         switch (role) {
         case Qt::DisplayRole : {
-            return dev.getName() + "  (" + dev.getOSName() + ")";
+            return dev.getName() + QStringLiteral("  (") + dev.getAddress().toString() + QLatin1Char(')');
         }
         case Qt::ToolTipRole : {
             QString str = dev.getId() + "<br>" +

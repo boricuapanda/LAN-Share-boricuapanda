@@ -40,6 +40,32 @@
 #define MinParallelStreams          1
 #define MaxParallelStreams          8
 
+namespace {
+
+UiThemeMode uiThemeFromString(const QString& value)
+{
+    if (value == QLatin1String("light"))
+        return UiThemeMode::Light;
+    if (value == QLatin1String("dark"))
+        return UiThemeMode::Dark;
+    return UiThemeMode::System;
+}
+
+QString uiThemeToString(UiThemeMode mode)
+{
+    switch (mode) {
+    case UiThemeMode::Light:
+        return QStringLiteral("light");
+    case UiThemeMode::Dark:
+        return QStringLiteral("dark");
+    case UiThemeMode::System:
+    default:
+        return QStringLiteral("system");
+    }
+}
+
+} // namespace
+
 Settings* Settings::obj = new Settings;
 Settings::Settings()
 {
@@ -186,6 +212,11 @@ void Settings::setJournalRetentionDays(int days)
         mJournalRetentionDays = days;
 }
 
+void Settings::setUiTheme(UiThemeMode mode)
+{
+    mUiTheme = mode;
+}
+
 void Settings::loadSettings()
 {
     QSettings settings(SETTINGS_FILE);
@@ -217,6 +248,7 @@ void Settings::loadSettings()
     mTransferOffsetAckTimeoutMs = settings.value("TransferOffsetAckTimeoutMs", DefaultTransferOffsetAckTimeoutMs).toInt();
     mJournalEnabled = settings.value("JournalEnabled", true).toBool();
     mJournalRetentionDays = settings.value("JournalRetentionDays", DefaultJournalRetentionDays).toInt();
+    mUiTheme = uiThemeFromString(settings.value("UiTheme", QStringLiteral("system")).toString());
 }
 
 QString Settings::getDefaultDownloadPath()
@@ -254,6 +286,7 @@ void Settings::saveSettings()
     settings.setValue("TransferOffsetAckTimeoutMs", mTransferOffsetAckTimeoutMs);
     settings.setValue("JournalEnabled", mJournalEnabled);
     settings.setValue("JournalRetentionDays", mJournalRetentionDays);
+    settings.setValue("UiTheme", uiThemeToString(mUiTheme));
 }
 
 void Settings::reset()
@@ -279,6 +312,7 @@ void Settings::reset()
     mTransferOffsetAckTimeoutMs = DefaultTransferOffsetAckTimeoutMs;
     mJournalEnabled = true;
     mJournalRetentionDays = DefaultJournalRetentionDays;
+    mUiTheme = UiThemeMode::System;
 }
 
 quint16 Settings::getBroadcastPort() const
@@ -404,5 +438,10 @@ bool Settings::getJournalEnabled() const
 int Settings::getJournalRetentionDays() const
 {
     return mJournalRetentionDays;
+}
+
+UiThemeMode Settings::getUiTheme() const
+{
+    return mUiTheme;
 }
 

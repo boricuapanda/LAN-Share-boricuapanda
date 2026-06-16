@@ -1,0 +1,31 @@
+QMainWindow { }
+
+QTableView {
+    alternate-background-color: palette(alternate-base);
+    gridline-color: transparent;
+}
+
+QHeaderView::section {
+    font-weight: bold;
+    padding: 4px;
+}
+
+QProgressBar {
+    border: 1px solid palette(mid);
+    border-radius: 3px;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    background-color: palette(highlight);
+}
+
+QLabel#sectionHeader {
+    font-size: 13px;
+    font-weight: bold;
+}
+
+QLabel#emptyStateLabel {
+    color: palette(mid);
+    font-size: 12px;
+}

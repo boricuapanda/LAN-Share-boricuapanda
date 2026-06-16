@@ -13,6 +13,7 @@
 
 #include <QDialog>
 
+class QComboBox;
 class QLabel;
 class QPlainTextEdit;
 class QFileSystemWatcher;
@@ -31,9 +32,12 @@ private Q_SLOTS:
 
 private:
     void setupUi();
+    QString filterLogContent(const QString& content) const;
 
     QPlainTextEdit* mLogView;
     QLabel* mStatsLabel;
+    QLabel* mPathLabel;
+    QComboBox* mPhaseFilter;
     QFileSystemWatcher* mWatcher;
 };
 

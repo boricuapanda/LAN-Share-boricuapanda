@@ -8,6 +8,25 @@ Living changelog for modifications made to this fork. Update this file whenever 
 
 ---
 
+## UI modernization (2026-06)
+
+### What was added
+- **Theme:** System / Light / Dark selector in Settings (persists across sessions)
+- **UiTheme:** Shared QSS from `app.qss`, Fusion palette for Light/Dark, palette-aware transfer state colors
+- **TransferProgressWidget:** Inline progress bar with queued/failed state display on upload and download tables
+- **Status bar:** Listening port, TLS indicator, and active upload/download counts
+- **Empty states:** Placeholder labels when upload or download tables have no rows
+- **Drag-and-drop send:** Drop files or folders onto the upload pane to queue a transfer
+- **Receiver picker:** Search filter and resizable dialog for peer selection
+- **Log viewer:** Phase filter (all / start / finish / failure / retry / recovery) and syntax highlighting
+- **Icons:** Freedesktop theme icons via `UiTheme::themedIcon()` with bundled PNG fallback
+
+### Tests
+- `transfer_test`: 34 tests
+- `ui_test`: 14+ tests
+
+---
+
 ## 2026-06-16 — True multi-socket striping (phase 2)
 
 ### What was added

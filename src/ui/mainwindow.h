@@ -20,12 +20,19 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QLabel>
+#include <QStackedWidget>
 #include <QSystemTrayIcon>
 
 #include "model/transfertablemodel.h"
 #include "model/devicelistmodel.h"
 #include "transfer/devicebroadcaster.h"
 #include "transfer/transferserver.h"
+
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
+class QMimeData;
 
 namespace Ui {
 class MainWindow;
@@ -43,8 +50,14 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
+    void showStartupMessage(const QString& summary);
+
 protected:
     void closeEvent(QCloseEvent* event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 public Q_SLOTS:
     void setMainWindowVisibility(bool visible = true);
@@ -100,16 +113,24 @@ private:
     void connectSignals();
     void sendFile(const QString& folderName, const QString& fileName, const Device& receiver);
     void selectReceiversAndSendTheFiles(QVector<QPair<QString, QString> > dirNameAndFullPath);
+    static bool mimeHasLocalUrls(const QMimeData* mimeData);
     void processSendQueue();
     int activeSenderCount() const;
     void connectSenderQueueSignals(TransferInfo* info);
+    void setupTableStacks();
+    void setupTablePolish();
+    void setupAccessibility();
+    void connectTransferModelSignals();
+    void updateStatusBar();
+    void scheduleUpdateStatusBar();
+    void updateEmptyStates();
+    void onTransferRowsInserted(const QModelIndex& parent, int first, int last);
+    void onTransferRowsRemoved(const QModelIndex& parent, int first, int last);
+    static int countActiveTransfers(const TransferTableModel* model);
 
 #ifdef QT_TESTLIB_LIB
     friend class UiTest;
 #endif
-
-    bool anyActiveSender();
-    bool anyActiveReceiver();
 
     bool mForceQuit{false};
     Ui::MainWindow *ui;
@@ -122,6 +143,10 @@ private:
 
     DeviceBroadcaster* mBroadcaster;
     TransferServer* mTransServer;
+
+    QStackedWidget* mSenderStack{nullptr};
+    QStackedWidget* mReceiverStack{nullptr};
+    QLabel* mStatusLabel{nullptr};
 
     QAction* mShowMainWindowAction;
     QAction* mSendFilesAction;

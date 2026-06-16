@@ -15,6 +15,8 @@ SOURCES += ui_test.cpp \
     ../src/ui/settingsdialog.cpp \
     ../src/ui/logviewerdialog.cpp \
     ../src/ui/tlstrustdialog.cpp \
+    ../src/ui/uitheme.cpp \
+    ../src/ui/transferprogresswidget.cpp \
     ../src/transfer/devicebroadcaster.cpp \
     ../src/transfer/receiver.cpp \
     ../src/transfer/sender.cpp \
@@ -37,6 +39,8 @@ HEADERS += ../src/settings.h \
     ../src/ui/settingsdialog.h \
     ../src/ui/logviewerdialog.h \
     ../src/ui/tlstrustdialog.h \
+    ../src/ui/uitheme.h \
+    ../src/ui/transferprogresswidget.h \
     ../src/transfer/devicebroadcaster.h \
     ../src/transfer/receiver.h \
     ../src/transfer/sender.h \
