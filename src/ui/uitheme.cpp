@@ -26,6 +26,12 @@
 
 namespace {
 
+// Brand: blue #1A6DAA, teal #14A3B8, white content
+constexpr QColor kBluePrimary{0x1a, 0x6d, 0xaa};
+constexpr QColor kTealAccent{0x14, 0xa3, 0xb8};
+constexpr QColor kTextOnWhite{0x1b, 0x4f, 0x72};
+constexpr QColor kTextMuted{0x5a, 0x8f, 0xad};
+
 QString loadStyleSheet(const QString& resourcePath)
 {
     QFile file(resourcePath);
@@ -35,65 +41,67 @@ QString loadStyleSheet(const QString& resourcePath)
     return QString::fromUtf8(file.readAll());
 }
 
-QPalette lightPalette()
+QPalette brandLightPalette()
 {
     QPalette palette;
-    palette.setColor(QPalette::Window, QColor(240, 240, 240));
-    palette.setColor(QPalette::WindowText, QColor(0, 0, 0));
+    palette.setColor(QPalette::Window, QColor(255, 255, 255));
+    palette.setColor(QPalette::WindowText, kTextOnWhite);
     palette.setColor(QPalette::Base, QColor(255, 255, 255));
-    palette.setColor(QPalette::AlternateBase, QColor(245, 245, 245));
-    palette.setColor(QPalette::ToolTipBase, QColor(255, 255, 220));
-    palette.setColor(QPalette::ToolTipText, QColor(0, 0, 0));
-    palette.setColor(QPalette::Text, QColor(0, 0, 0));
-    palette.setColor(QPalette::Button, QColor(240, 240, 240));
-    palette.setColor(QPalette::ButtonText, QColor(0, 0, 0));
-    palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
-    palette.setColor(QPalette::Link, QColor(42, 130, 218));
-    palette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+    palette.setColor(QPalette::AlternateBase, QColor(244, 250, 252));
+    palette.setColor(QPalette::ToolTipBase, QColor(255, 255, 255));
+    palette.setColor(QPalette::ToolTipText, kTextOnWhite);
+    palette.setColor(QPalette::Text, kTextOnWhite);
+    palette.setColor(QPalette::Button, QColor(232, 244, 250));
+    palette.setColor(QPalette::ButtonText, kTextOnWhite);
+    palette.setColor(QPalette::BrightText, QColor(220, 53, 69));
+    palette.setColor(QPalette::Link, kTealAccent);
+    palette.setColor(QPalette::Highlight, kTealAccent);
     palette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
-    palette.setColor(QPalette::PlaceholderText, QColor(120, 120, 120));
-    palette.setColor(QPalette::Mid, QColor(160, 160, 160));
+    palette.setColor(QPalette::PlaceholderText, kTextMuted);
+    palette.setColor(QPalette::Mid, QColor(140, 180, 204));
     palette.setColor(QPalette::LinkVisited, QColor(192, 57, 43));
     return palette;
 }
 
-QPalette darkPalette()
+QPalette brandDarkPalette()
 {
     QPalette palette;
-    palette.setColor(QPalette::Window, QColor(53, 53, 53));
-    palette.setColor(QPalette::WindowText, QColor(255, 255, 255));
-    palette.setColor(QPalette::Base, QColor(35, 35, 35));
-    palette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
-    palette.setColor(QPalette::ToolTipBase, QColor(255, 255, 220));
-    palette.setColor(QPalette::ToolTipText, QColor(0, 0, 0));
-    palette.setColor(QPalette::Text, QColor(255, 255, 255));
-    palette.setColor(QPalette::Button, QColor(53, 53, 53));
+    palette.setColor(QPalette::Window, QColor(15, 45, 66));
+    palette.setColor(QPalette::WindowText, QColor(230, 240, 248));
+    palette.setColor(QPalette::Base, QColor(20, 55, 80));
+    palette.setColor(QPalette::AlternateBase, QColor(25, 65, 92));
+    palette.setColor(QPalette::ToolTipBase, QColor(30, 70, 100));
+    palette.setColor(QPalette::ToolTipText, QColor(255, 255, 255));
+    palette.setColor(QPalette::Text, QColor(230, 240, 248));
+    palette.setColor(QPalette::Button, QColor(26, 109, 170));
     palette.setColor(QPalette::ButtonText, QColor(255, 255, 255));
-    palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
-    palette.setColor(QPalette::Link, QColor(42, 130, 218));
-    palette.setColor(QPalette::Highlight, QColor(42, 130, 218));
-    palette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
-    palette.setColor(QPalette::PlaceholderText, QColor(127, 127, 127));
-    palette.setColor(QPalette::Mid, QColor(127, 127, 127));
+    palette.setColor(QPalette::BrightText, QColor(255, 100, 100));
+    palette.setColor(QPalette::Link, QColor(45, 212, 191));
+    palette.setColor(QPalette::Highlight, QColor(45, 212, 191));
+    palette.setColor(QPalette::HighlightedText, QColor(15, 45, 66));
+    palette.setColor(QPalette::PlaceholderText, QColor(140, 180, 200));
+    palette.setColor(QPalette::Mid, QColor(100, 140, 170));
     palette.setColor(QPalette::LinkVisited, QColor(231, 76, 60));
     return palette;
 }
 
-QString modeStyleOverrides(UiThemeMode mode)
+QString darkStyleOverrides()
 {
-    if (mode == UiThemeMode::Dark) {
-        return QStringLiteral(
-            "QMainWindow { background-color: palette(window); }\n"
-            "QTableView { background-color: palette(base); }\n");
-    }
-
-    if (mode == UiThemeMode::Light) {
-        return QStringLiteral(
-            "QMainWindow { background-color: palette(window); }\n"
-            "QTableView { background-color: palette(base); }\n");
-    }
-
-    return QString();
+    return QStringLiteral(
+        "QMainWindow { background-color: #0f2d42; }\n"
+        "QToolBar { background-color: #154569; }\n"
+        "QToolBar::separator { background-color: #2a6a9a; }\n"
+        "QStatusBar { background-color: #0f2d42; color: #c5dff0; border-top: 1px solid #2a6a9a; }\n"
+        "QTableView { background-color: #143750; alternate-background-color: #19425e; }\n"
+        "QHeaderView::section { background-color: #19425e; color: #c5dff0; border-bottom: 2px solid #2dd4bf; }\n"
+        "QLabel#sectionHeader { color: #5ec8e0; }\n"
+        "QLabel#emptyStateLabel, QLabel#senderEmptyLabel, QLabel#receiverEmptyLabel { color: #7eb8d4; }\n"
+        "QPushButton:flat { color: #c5dff0; }\n"
+        "QPushButton:flat:hover:enabled { background-color: #1a4d6e; }\n"
+        "QPushButton:flat:disabled { color: #4a7a96; }\n"
+        "QProgressBar { background-color: #19425e; border-color: #2a6a9a; color: #c5dff0; }\n"
+        "QProgressBar::chunk { background-color: #2dd4bf; }\n"
+        "QSplitter::handle { background-color: #2a6a9a; }\n");
 }
 
 } // namespace
@@ -103,21 +111,17 @@ void UiTheme::apply(QApplication* app)
     if (!app)
         return;
 
-    static QString platformStyleName;
-    if (platformStyleName.isEmpty())
-        platformStyleName = app->style()->objectName();
-
     const UiThemeMode mode = Settings::instance()->getUiTheme();
     QString styleSheet = loadStyleSheet(QStringLiteral(":/style/app.qss"));
 
-    if (mode == UiThemeMode::System) {
-        if (QStyle* platformStyle = QStyleFactory::create(platformStyleName))
-            app->setStyle(platformStyle);
-        app->setPalette(app->style()->standardPalette());
+    app->setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+
+    if (mode == UiThemeMode::Dark) {
+        app->setPalette(brandDarkPalette());
+        styleSheet += darkStyleOverrides();
     } else {
-        app->setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
-        app->setPalette(mode == UiThemeMode::Dark ? darkPalette() : lightPalette());
-        styleSheet += modeStyleOverrides(mode);
+        // System and Light both use the blue/teal brand on white
+        app->setPalette(brandLightPalette());
     }
 
     app->setStyleSheet(styleSheet);
@@ -134,19 +138,15 @@ QColor UiTheme::stateColor(TransferState state, const QPalette& palette)
     case TransferState::Paused:
         return palette.color(QPalette::Mid);
     case TransferState::Transfering:
-        return palette.color(QPalette::Link);
+        return kTealAccent;
     case TransferState::Finish: {
         const bool darkBackground = palette.color(QPalette::Window).lightness() < 128;
-        return darkBackground ? QColor(102, 187, 106) : QColor(46, 125, 50);
+        return darkBackground ? QColor(45, 212, 191) : QColor(13, 122, 110);
     }
     case TransferState::Failed:
     case TransferState::Cancelled:
-    case TransferState::Disconnected: {
-        QColor errorTone = palette.color(QPalette::LinkVisited);
-        if (!errorTone.isValid())
-            errorTone = QColor(192, 57, 43);
-        return errorTone;
-    }
+    case TransferState::Disconnected:
+        return palette.color(QPalette::BrightText);
     }
 
     return QColor();
@@ -158,5 +158,10 @@ QIcon UiTheme::themedIcon(const QString& freedesktopName, const QString& resourc
     if (!themed.isNull())
         return themed;
 
+    return QIcon(resourcePath);
+}
+
+QIcon UiTheme::appIcon(const QString& resourcePath)
+{
     return QIcon(resourcePath);
 }

@@ -131,7 +131,7 @@
              <string>Cancel selected item</string>
             </property>
             <property name="text">
-             <string>Cancel</string>
+             <string/>
             </property>
             <property name="icon">
              <iconset resource="../res.qrc">
@@ -298,7 +298,7 @@
              <string>Cancel selected item</string>
             </property>
             <property name="text">
-             <string>Cancel</string>
+             <string/>
             </property>
             <property name="icon">
              <iconset resource="../res.qrc">

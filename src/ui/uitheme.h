@@ -30,4 +30,5 @@ public:
     static void apply(QApplication* app);
     static QColor stateColor(TransferState state, const QPalette& palette);
     static QIcon themedIcon(const QString& freedesktopName, const QString& resourcePath);
+    static QIcon appIcon(const QString& resourcePath);
 };

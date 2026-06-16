@@ -63,6 +63,9 @@ MainWindow::MainWindow(QWidget *parent) :
     setupSystrayIcon();
     setWindowTitle(PROGRAM_NAME);
 
+    ui->label->setObjectName(QStringLiteral("sectionHeader"));
+    ui->label_2->setObjectName(QStringLiteral("sectionHeader"));
+
     mBroadcaster = new DeviceBroadcaster(this);
     mBroadcaster->start();
     mSenderModel = new TransferTableModel(this);
@@ -760,7 +763,7 @@ void MainWindow::setupToolbar()
     sendBtn->setPopupMode(QToolButton::InstantPopup);
     sendBtn->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     sendBtn->setText(tr("Send"));
-    sendBtn->setIcon(UiTheme::themedIcon(QStringLiteral("document-open"), QStringLiteral(":/img/send.png")));
+    sendBtn->setIcon(UiTheme::appIcon(QStringLiteral(":/img/send.png")));
     sendBtn->setMenu(sendMenu);
     ui->mainToolBar->addWidget(sendBtn);
     ui->mainToolBar->addSeparator();
@@ -780,7 +783,7 @@ void MainWindow::setupToolbar()
     QToolButton* aboutBtn = new QToolButton();
     aboutBtn->setText(tr("About"));
     aboutBtn->setToolTip(tr("About this program"));
-    aboutBtn->setIcon(UiTheme::themedIcon(QStringLiteral("help-about"), QStringLiteral(":/img/about.png")));
+    aboutBtn->setIcon(UiTheme::appIcon(QStringLiteral(":/img/about.png")));
     aboutBtn->setMenu(menu);
     aboutBtn->setPopupMode(QToolButton::InstantPopup);
     ui->mainToolBar->addWidget(aboutBtn);
@@ -791,21 +794,21 @@ void MainWindow::setupActions()
     mShowMainWindowAction = new QAction(tr("Show Main Window"), this);
     connect(mShowMainWindowAction, &QAction::triggered, this, &MainWindow::onShowMainWindowTriggered);
     mSendFilesAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("document-open"), QStringLiteral(":/img/file.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/file.png")),
         tr("Send files..."), this);
     connect(mSendFilesAction, &QAction::triggered, this, &MainWindow::onSendFilesActionTriggered);
     mSendFolderAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("folder"), QStringLiteral(":/img/folder.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/folder.png")),
         tr("Send folders..."), this);
     connect(mSendFolderAction, &QAction::triggered, this, &MainWindow::onSendFolderActionTriggered);
     mSettingsAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("preferences-system"), QStringLiteral(":/img/settings.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/settings.png")),
         tr("Settings"), this);
     connect(mSettingsAction, &QAction::triggered, this, &MainWindow::onSettingsActionTriggered);
     mViewLogAction = new QAction(tr("View Log..."), this);
     connect(mViewLogAction, &QAction::triggered, this, &MainWindow::onViewLogActionTriggered);
     mAboutAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("help-about"), QStringLiteral(":/img/about.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/about.png")),
         tr("About"), this);
     mAboutAction->setMenuRole(QAction::AboutRole);
     connect(mAboutAction, &QAction::triggered, this, &MainWindow::onAboutActionTriggered);
@@ -820,23 +823,23 @@ void MainWindow::setupActions()
     mSenderOpenFolderAction = new QAction(tr("Open folder"), this);
     connect(mSenderOpenFolderAction, &QAction::triggered, this, &MainWindow::openSenderFolderInCurrentIndex);
     mSenderRemoveAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("list-remove"), QStringLiteral(":/img/remove.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/remove.png")),
         tr("Remove"), this);
     connect(mSenderRemoveAction, &QAction::triggered, this, &MainWindow::removeSenderItemInCurrentIndex);
     mSenderClearAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("edit-clear"), QStringLiteral(":/img/clear.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/clear.png")),
         tr("Clear"), this);
     connect(mSenderClearAction, &QAction::triggered, this, &MainWindow::onSenderClearClicked);
     mSenderPauseAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("media-playback-pause"), QStringLiteral(":/img/pause.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/pause.png")),
         tr("Pause"), this);
     connect(mSenderPauseAction, &QAction::triggered, this, &MainWindow::onSenderPauseClicked);
     mSenderResumeAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("media-playback-start"), QStringLiteral(":/img/resume.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/resume.png")),
         tr("Resume"), this);
     connect(mSenderResumeAction, &QAction::triggered, this, &MainWindow::onSenderResumeClicked);
     mSenderCancelAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("process-stop"), QStringLiteral(":/img/cancel.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/cancel.png")),
         tr("Cancel"), this);
     connect(mSenderCancelAction, &QAction::triggered, this, &MainWindow::onSenderCancelClicked);
 
@@ -845,25 +848,25 @@ void MainWindow::setupActions()
     mRecOpenFolderAction = new QAction(tr("Open folder"), this);
     connect(mRecOpenFolderAction, &QAction::triggered, this, &MainWindow::openReceiverFolderInCurrentIndex);
     mRecRemoveAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("list-remove"), QStringLiteral(":/img/remove.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/remove.png")),
         tr("Remove"), this);
     connect(mRecRemoveAction, &QAction::triggered, this, &MainWindow::removeReceiverItemInCurrentIndex);
     mRecDeleteAction = new QAction(tr("Delete from disk"), this);
     connect(mRecDeleteAction, &QAction::triggered, this, &MainWindow::deleteReceiverFileInCurrentIndex);
     mRecClearAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("edit-clear"), QStringLiteral(":/img/clear.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/clear.png")),
         tr("Clear"), this);
     connect(mRecClearAction, &QAction::triggered, this, &MainWindow::onReceiverClearClicked);
     mRecPauseAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("media-playback-pause"), QStringLiteral(":/img/pause.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/pause.png")),
         tr("Pause"), this);
     connect(mRecPauseAction, &QAction::triggered, this, &MainWindow::onReceiverPauseClicked);
     mRecResumeAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("media-playback-start"), QStringLiteral(":/img/resume.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/resume.png")),
         tr("Resume"), this);
     connect(mRecResumeAction, &QAction::triggered, this, &MainWindow::onReceiverResumeClicked);
     mRecCancelAction = new QAction(
-        UiTheme::themedIcon(QStringLiteral("process-stop"), QStringLiteral(":/img/cancel.png")),
+        UiTheme::appIcon(QStringLiteral(":/img/cancel.png")),
         tr("Cancel"), this);
     connect(mRecCancelAction, &QAction::triggered, this, &MainWindow::onReceiverCancelClicked);
 }
