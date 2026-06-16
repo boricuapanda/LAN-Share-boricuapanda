@@ -6,14 +6,6 @@
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef TRANSFER_H
@@ -22,10 +14,11 @@
 #include <QFile>
 #include <QTcpSocket>
 #include <QObject>
+#include <QTimer>
 
 #include "model/device.h"
 #include "model/transferinfo.h"
-
+#include "model/transferfailure.h"
 
 enum class PacketType : char
 {
@@ -34,8 +27,16 @@ enum class PacketType : char
     Finish,
     Cancel,
     Pause,
-    Resume
+    Resume,
+    OffsetAck,
+    StreamAttach,
+    StripedData
 };
+
+namespace TransferProtocol {
+constexpr int CurrentVersion = 2;
+constexpr qint32 Magic = 0x4C414E53; // "LANS"
+}
 
 class Transfer : public QObject
 {
@@ -55,6 +56,11 @@ public:
 protected:
     void clearReadBuffer();
     void setSocket(QTcpSocket* socket);
+    bool isTerminalState() const;
+    bool isValidPacketType(PacketType type) const;
+    void failTransfer(TransferFailureReason reason, const QString& message);
+    void touchActivity();
+    void resetIdleTimer();
 
     virtual void processPacket(QByteArray& data, PacketType type);
     virtual void processHeaderPacket(QByteArray& data);
@@ -63,6 +69,7 @@ protected:
     virtual void processCancelPacket(QByteArray& data);
     virtual void processPausePacket(QByteArray& data);
     virtual void processResumePacket(QByteArray& data);
+    virtual void processOffsetAckPacket(QByteArray& data);
 
     virtual void writePacket(qint32 packetDataSize, PacketType type, const QByteArray& data);
 
@@ -72,14 +79,15 @@ protected:
 
 private Q_SLOTS:
     void onReadyRead();
+    void onIdleTimeout();
 
 private:
+    bool consumeNextPacket();
 
-    //
     QByteArray mBuff;
     qint32 mPacketSize;
-
     int mHeaderSize;
+    QTimer* mIdleTimer;
 };
 
 #endif // TRANSFER_H

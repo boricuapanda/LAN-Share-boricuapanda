@@ -16,13 +16,26 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDir>
 #include <QtDebug>
+#include <QStringList>
+#include <QSslSocket>
+#include <QSslError>
+#include <QUuid>
+#include <QDataStream>
+#include <QTimer>
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QDateTime>
 
 #include "settings.h"
 #include "sender.h"
+#include "log.h"
+#include "tlshelper.h"
+#include "transfer/transferjournal.h"
 
 Sender::Sender(const Device& receiver, const QString& folderName, const QString& filePath, QObject* parent)
     : Transfer(nullptr, parent), mReceiverDev(receiver), mFilePath(filePath), mFolderName(folderName)
@@ -37,10 +50,46 @@ Sender::Sender(const Device& receiver, const QString& folderName, const QString&
     mPaused = false;
     mPausedByReceiver = false;
     mIsHeaderSent = false;
+    mWaitingForOffsetAck = false;
+    mStartedTlsHandshake = false;
+    mRequestedStreams = Settings::instance()->getParallelStreams();
+    mActiveStreams = 1;
+    mNextStripedOffset = 0;
+    mVerifyChecksum = Settings::instance()->getVerifyChecksum();
+    mTransferId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    mHash = mVerifyChecksum ? new QCryptographicHash(QCryptographicHash::Sha256) : nullptr;
+    mOffsetAckTimer = new QTimer(this);
+    mOffsetAckTimer->setSingleShot(true);
+    connect(mOffsetAckTimer, &QTimer::timeout, this, &Sender::onOffsetAckTimeout);
+    mRetryScheduled = false;
 
     mInfo->setTransferType(TransferType::Upload);
     mInfo->setPeer(receiver);
+    mInfo->setTransferId(mTransferId);
 }
+
+namespace {
+
+void journalCheckpointUpload(const Sender* sender, TransferState state)
+{
+    if (!Settings::instance()->getJournalEnabled())
+        return;
+
+    const TransferInfo* info = sender->getTransferInfo();
+    JournalEntry entry;
+    entry.transferId = info->getTransferId();
+    entry.type = TransferType::Upload;
+    entry.filePath = info->getFilePath();
+    entry.peerAddress = info->getPeer().getAddress().toString();
+    entry.state = state;
+    entry.dataSize = info->getDataSize();
+    entry.bytesTransferred = info->getBytesTransferred();
+    entry.fingerprint = TransferJournal::makeFingerprint(entry.transferId, entry.dataSize, entry.filePath);
+    entry.updatedAtMs = QDateTime::currentMSecsSinceEpoch();
+    TransferJournal::instance()->upsert(entry);
+}
+
+} // namespace
 
 bool Sender::start()
 {
@@ -55,17 +104,97 @@ bool Sender::start()
     }
 
     if (mFileSize > 0) {
-        QHostAddress receiverAddress = mReceiverDev.getAddress();
-        setSocket(new QTcpSocket(this));
-        mSocket->connectToHost(receiverAddress, Settings::instance()->getTransferPort(), QAbstractSocket::ReadWrite);
-        mInfo->setState(TransferState::Waiting);
-
-        connect(mSocket, &QTcpSocket::bytesWritten, this, &Sender::onBytesWritten);
-        connect(mSocket, &QTcpSocket::connected, this, &Sender::onConnected);
-        connect(mSocket, &QTcpSocket::disconnected, this, &Sender::onDisconnected);
+        connectTransferSocket();
     }
 
     return ok && mSocket;
+}
+
+void Sender::connectTransferSocket()
+{
+    QHostAddress receiverAddress = mReceiverDev.getAddress();
+    if (Settings::instance()->getTlsEnabled())
+        setSocket(new QSslSocket(this));
+    else
+        setSocket(new QTcpSocket(this));
+
+    connect(mSocket, &QTcpSocket::bytesWritten, this, &Sender::onBytesWritten);
+    connect(mSocket, &QTcpSocket::connected, this, &Sender::onConnected);
+    connect(mSocket, &QTcpSocket::disconnected, this, &Sender::onDisconnected);
+    connect(mSocket, &QAbstractSocket::errorOccurred, this, &Sender::onSocketError);
+    if (auto* sslSocket = qobject_cast<QSslSocket*>(mSocket)) {
+        connect(sslSocket, &QSslSocket::encrypted, this, &Sender::onEncrypted);
+        connect(sslSocket,
+                QOverload<const QList<QSslError>&>::of(&QSslSocket::sslErrors),
+                this,
+                &Sender::onSslErrors);
+    }
+
+    mSocket->connectToHost(receiverAddress, Settings::instance()->getTransferPort(), QAbstractSocket::ReadWrite);
+    mInfo->setState(TransferState::Waiting);
+    journalCheckpointUpload(this, TransferState::Waiting);
+    if (mInfo->getAttempt() == 0) {
+        AppLog::transferEvent(mTransferId, QStringLiteral("start"), mReceiverDev.getAddress().toString(),
+                              QStringLiteral("-"), QString::number(mInfo->getAttempt()), mFilePath);
+    }
+}
+
+void Sender::scheduleRetry(int delayMs, int nextAttempt)
+{
+    if (mRetryScheduled || mCancelled)
+        return;
+
+    mRetryScheduled = true;
+    AppLog::transferEvent(mTransferId, QStringLiteral("retry"),
+                          mReceiverDev.getAddress().toString(),
+                          QStringLiteral("peer_disconnected"),
+                          QString::number(nextAttempt),
+                          tr("Retrying in %1 ms").arg(delayMs));
+    QTimer::singleShot(delayMs, this, [this, nextAttempt]() {
+        mRetryScheduled = false;
+        if (mCancelled || mInfo->getState() == TransferState::Cancelled
+            || mInfo->getState() == TransferState::Finish) {
+            return;
+        }
+        retryConnect(nextAttempt);
+    });
+}
+
+void Sender::retryConnect(int attempt)
+{
+    mInfo->setAttempt(attempt);
+    mIsHeaderSent = false;
+    mWaitingForOffsetAck = false;
+    mPausedByReceiver = false;
+    mStartedTlsHandshake = false;
+    mOffsetAckTimer->stop();
+    clearReadBuffer();
+    closeDataSockets();
+
+    if (mSocket) {
+        mSocket->disconnect(this);
+        mSocket->deleteLater();
+        mSocket = nullptr;
+    }
+
+    if (!mFile)
+        mFile = new QFile(mFilePath, this);
+    if (!mFile->isOpen() && !mFile->open(QIODevice::ReadOnly)) {
+        mInfo->fail(TransferFailureReason::FileIoError, tr("Error reopening file for retry."));
+        return;
+    }
+    if (!mFile->seek(0)) {
+        mInfo->fail(TransferFailureReason::FileIoError, tr("Error seeking file for retry."));
+        return;
+    }
+    if (mVerifyChecksum && mHash)
+        mHash->reset();
+    mFileSize = mFile->size();
+    mInfo->setDataSize(mFileSize);
+    mBytesRemaining = mFileSize;
+    resetIdleTimer();
+
+    connectTransferSocket();
 }
 
 void Sender::resume()
@@ -82,13 +211,25 @@ void Sender::pause()
     if (mInfo->canPause()) {
         mInfo->setState(TransferState::Paused);
         mPaused = true;
+        closeDataSockets();
     }
 }
 
 void Sender::cancel()
 {
+    if (!mInfo->canCancel())
+        return;
+
+    if (mInfo->getState() == TransferState::Queued || !mSocket) {
+        mInfo->setState(TransferState::Cancelled);
+        mInfo->setProgress(0);
+        mCancelled = true;
+        return;
+    }
+
     if (mInfo->canCancel()) {
         writePacket(0, PacketType::Cancel, QByteArray());
+        closeDataSockets();
         mInfo->setState(TransferState::Cancelled);
         mInfo->setProgress(0);
         mCancelled = true;
@@ -97,14 +238,76 @@ void Sender::cancel()
 
 void Sender::onConnected()
 {
+    auto* sslSocket = qobject_cast<QSslSocket*>(mSocket);
+    if (Settings::instance()->getTlsEnabled() && sslSocket) {
+        mStartedTlsHandshake = true;
+        // Token auth is still enforced at packet level, so peer certificate verification
+        // is disabled for now to keep rollout compatible with self-signed local certs.
+        sslSocket->setPeerVerifyMode(QSslSocket::VerifyNone);
+        sslSocket->startClientEncryption();
+        return;
+    }
+
+    onEncrypted();
+}
+
+void Sender::onEncrypted()
+{
+    if (auto* sslSocket = qobject_cast<QSslSocket*>(mSocket)) {
+        QString tlsError;
+        const QString peerId = mReceiverDev.getAddress().toString();
+        if (!TlsHelper::checkAndPinPeerCertificate(peerId, sslSocket->peerCertificate(), &tlsError)) {
+            mInfo->fail(TransferFailureReason::TlsError, tlsError);
+            mSocket->disconnectFromHost();
+            return;
+        }
+    }
+
     mInfo->setState(TransferState::Transfering);
     sendHeader();
 }
 
 void Sender::onDisconnected()
 {
-    mInfo->setState(TransferState::Disconnected);
-    emit mInfo->errorOcurred(tr("Receiver disconnected"));
+    if (mInfo->getState() == TransferState::Failed || mInfo->getState() == TransferState::Cancelled ||
+        mInfo->getState() == TransferState::Finish) {
+        return;
+    }
+
+    closeDataSockets();
+    resetIdleTimer();
+    journalCheckpointUpload(this, TransferState::Disconnected);
+
+    const int retryMax = Settings::instance()->getTransferRetryMax();
+    if (!mCancelled && !mPaused && mInfo->getAttempt() < retryMax) {
+        mInfo->setState(TransferState::Waiting);
+        const int nextAttempt = mInfo->getAttempt() + 1;
+        const int delayMs = Settings::instance()->getTransferRetryBaseMs() * (1 << (nextAttempt - 1));
+        scheduleRetry(delayMs, nextAttempt);
+        return;
+    }
+
+    mInfo->fail(TransferFailureReason::PeerDisconnected, tr("Receiver disconnected"));
+}
+
+void Sender::onSocketError(QAbstractSocket::SocketError error)
+{
+    if (mInfo->getState() == TransferState::Failed || mInfo->getState() == TransferState::Cancelled ||
+        mInfo->getState() == TransferState::Finish) {
+        return;
+    }
+
+    if (error == QAbstractSocket::SslHandshakeFailedError || mStartedTlsHandshake) {
+        mInfo->fail(TransferFailureReason::TlsError,
+                    tr("TLS connection failed: %1").arg(mSocket->errorString()));
+    }
+}
+
+void Sender::onSslErrors(const QList<QSslError>& errors)
+{
+    Q_UNUSED(errors);
+    if (auto* sslSocket = qobject_cast<QSslSocket*>(mSocket))
+        sslSocket->ignoreSslErrors();
 }
 
 void Sender::onBytesWritten(qint64 bytes)
@@ -118,17 +321,47 @@ void Sender::onBytesWritten(qint64 bytes)
 
 void Sender::finish()
 {
-    mFile->close();
-    mInfo->setState(TransferState::Finish);
-    emit mInfo->done();
+    if (mInfo->getState() == TransferState::Failed || mInfo->getState() == TransferState::Cancelled ||
+        mInfo->getState() == TransferState::Finish || mInfo->getState() == TransferState::Disconnected) {
+        return;
+    }
+    if (!mSocket || mSocket->state() != QAbstractSocket::ConnectedState)
+        return;
 
-    writePacket(0, PacketType::Finish, QByteArray());
+    QByteArray finishData;
+    if (mVerifyChecksum && mHash) {
+        QJsonObject obj({{"sha256", QString::fromLatin1(mHash->result().toHex())}});
+        finishData = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+    }
+
+    writePacket(finishData.size(), PacketType::Finish, finishData);
+    if (mSocket) {
+        mSocket->flush();
+        mSocket->waitForBytesWritten(3000);
+    }
+    mInfo->setState(TransferState::Finish);
+    TransferJournal::instance()->remove(mTransferId);
+    AppLog::transferEvent(mTransferId, QStringLiteral("finish"), mReceiverDev.getAddress().toString(),
+                          QStringLiteral("-"), QString::number(mInfo->getAttempt()), mFilePath);
+    mFile->close();
+    emit mInfo->done();
 }
 
 void Sender::sendData()
 {
-    if (!mBytesRemaining || mCancelled || mPausedByReceiver || mPaused)
+    if (!mSocket || mSocket->state() != QAbstractSocket::ConnectedState)
         return;
+    if (mInfo->getState() == TransferState::Failed || mInfo->getState() == TransferState::Cancelled ||
+        mInfo->getState() == TransferState::Finish || mInfo->getState() == TransferState::Disconnected) {
+        return;
+    }
+    if (!mBytesRemaining || mCancelled || mPausedByReceiver || mPaused || mWaitingForOffsetAck)
+        return;
+
+    if (mActiveStreams > 1) {
+        sendStripedData();
+        return;
+    }
 
     if (mBytesRemaining < mFileBuffSize) {
         mFileBuff.resize(mBytesRemaining);
@@ -137,37 +370,340 @@ void Sender::sendData()
 
     qint64 bytesRead = mFile->read(mFileBuff.data(), mFileBuffSize);
     if (bytesRead == -1) {
-        emit mInfo->errorOcurred(tr("Error while reading file."));
+        mInfo->fail(TransferFailureReason::FileIoError, tr("Error while reading file."));
         return;
     }
+
+    if (mVerifyChecksum && mHash)
+        mHash->addData(mFileBuff.constData(), bytesRead);
 
     mBytesRemaining -= bytesRead;
     if (mBytesRemaining < 0)
         mBytesRemaining = 0;
 
     mInfo->setProgress( (int) ((mFileSize-mBytesRemaining) * 100 / mFileSize) );
+    mInfo->setBytesTransferred(mFileSize - mBytesRemaining);
 
-    writePacket(mFileBuffSize, PacketType::Data, mFileBuff);
+    writePacket(static_cast<qint32>(bytesRead), PacketType::Data, mFileBuff.left(bytesRead));
 
     if (!mBytesRemaining) {
         finish();
     }
 }
 
+bool Sender::setupDataSockets()
+{
+    if (mActiveStreams <= 1 || !mDataSockets.isEmpty())
+        return true;
+
+    if (mNextStripedOffset > 0) {
+        mActiveStreams = 1;
+        return false;
+    }
+
+    for (int i = 0; i < mActiveStreams; ++i) {
+        QTcpSocket* socket = new QTcpSocket(this);
+        socket->connectToHost(mReceiverDev.getAddress(), Settings::instance()->getTransferPort());
+        if (!socket->waitForConnected(3000)) {
+            AppLog::write("transfer", tr("Parallel stream socket connect failed, fallback to single stream."));
+            socket->deleteLater();
+            closeDataSockets();
+            mActiveStreams = 1;
+            return false;
+        }
+
+        QJsonObject attachObj({
+            {"stream_attach", true},
+            {"transfer_id", mTransferId},
+            {"stream_index", i}
+        });
+        const QByteArray attachData = QJsonDocument(attachObj).toJson(QJsonDocument::Compact);
+        qint32 packetSize = attachData.size();
+        const char type = static_cast<char>(PacketType::Header);
+        socket->write(reinterpret_cast<const char*>(&packetSize), sizeof(packetSize));
+        socket->write(&type, sizeof(type));
+        socket->write(attachData);
+        if (!socket->waitForBytesWritten(3000)) {
+            AppLog::write("transfer", tr("Parallel stream attach write failed, fallback to single stream."));
+            socket->deleteLater();
+            closeDataSockets();
+            mActiveStreams = 1;
+            return false;
+        }
+
+        QByteArray ackBuffer;
+        qint32 ackPacketSize = -1;
+        QElapsedTimer ackTimer;
+        ackTimer.start();
+        while (true) {
+            if (!socket->bytesAvailable())
+                socket->waitForReadyRead(10);
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+            ackBuffer.append(socket->readAll());
+            if (ackPacketSize < 0 && ackBuffer.size() >= static_cast<int>(sizeof(qint32)))
+                memcpy(&ackPacketSize, ackBuffer.constData(), sizeof(ackPacketSize));
+            if (ackPacketSize >= 0 &&
+                ackBuffer.size() >= static_cast<int>(sizeof(qint32) + sizeof(char) + ackPacketSize)) {
+                const PacketType ackType =
+                    static_cast<PacketType>(ackBuffer.at(sizeof(qint32)));
+                if (ackType != PacketType::OffsetAck) {
+                    AppLog::write("transfer", tr("Parallel stream attach ack invalid, fallback to single stream."));
+                    socket->deleteLater();
+                    closeDataSockets();
+                    mActiveStreams = 1;
+                    return false;
+                }
+                break;
+            }
+            if (ackTimer.elapsed() > 3000) {
+                AppLog::write("transfer", tr("Parallel stream attach ack timeout, fallback to single stream."));
+                socket->deleteLater();
+                closeDataSockets();
+                mActiveStreams = 1;
+                return false;
+            }
+        }
+        mDataSockets.push_back(socket);
+    }
+
+    return true;
+}
+
+void Sender::closeDataSockets()
+{
+    for (QTcpSocket* socket : mDataSockets) {
+        if (!socket)
+            continue;
+        socket->disconnectFromHost();
+        socket->deleteLater();
+    }
+    mDataSockets.clear();
+}
+
+bool Sender::writeStripedChunk(QTcpSocket* socket, qint64 offset, const QByteArray& chunk)
+{
+    if (!socket)
+        return false;
+
+    QByteArray payload;
+    QDataStream out(&payload, QIODevice::WriteOnly);
+    out.setByteOrder(QDataStream::LittleEndian);
+    out << offset;
+    out << static_cast<qint32>(chunk.size());
+    payload.append(chunk);
+
+    const qint32 packetSize = payload.size();
+    const char type = static_cast<char>(PacketType::StripedData);
+    if (socket->write(reinterpret_cast<const char*>(&packetSize), sizeof(packetSize)) < 0)
+        return false;
+    socket->write(&type, sizeof(type));
+    socket->write(payload);
+    return socket->waitForBytesWritten(5000);
+}
+
+void Sender::sendStripedData()
+{
+    if (!setupDataSockets()) {
+        sendData();
+        return;
+    }
+
+    int socketIndex = 0;
+    while (mBytesRemaining > 0 && !mCancelled && !mPaused && !mPausedByReceiver) {
+        const int chunkSize = qMin<qint64>(mFileBuffSize, mBytesRemaining);
+        QByteArray chunk = mFile->read(chunkSize);
+        if (chunk.isEmpty())
+            break;
+
+        if (mVerifyChecksum && mHash)
+            mHash->addData(chunk);
+
+        QTcpSocket* socket = mDataSockets.at(socketIndex % mDataSockets.size());
+        if (!writeStripedChunk(socket, mNextStripedOffset, chunk)) {
+            AppLog::write("transfer", tr("Parallel stream write failed, cancelling transfer."));
+            writePacket(0, PacketType::Cancel, QByteArray());
+            if (mSocket) {
+                mSocket->flush();
+                if (mSocket->state() == QAbstractSocket::ConnectedState)
+                    mSocket->waitForBytesWritten(1000);
+                mSocket->disconnectFromHost();
+            }
+            closeDataSockets();
+            mInfo->fail(TransferFailureReason::ParallelStreamError, tr("Parallel stream write failed."));
+            return;
+        }
+
+        mNextStripedOffset += chunk.size();
+        mBytesRemaining -= chunk.size();
+        mInfo->setProgress((int)((mFileSize - mBytesRemaining) * 100 / mFileSize));
+        mInfo->setBytesTransferred(mFileSize - mBytesRemaining);
+        ++socketIndex;
+    }
+
+    if (mBytesRemaining == 0)
+        finish();
+}
+
 void Sender::sendHeader()
 {
     QString fName = QDir(mFile->fileName()).dirName();
+    const bool authEnabled = Settings::instance()->getAuthEnabled();
+    const QString authToken = Settings::instance()->getAuthToken();
+    QString authHash;
+    if (authEnabled && !authToken.isEmpty()) {
+        authHash = QString::fromLatin1(
+            QCryptographicHash::hash(authToken.toUtf8(), QCryptographicHash::Sha256).toHex());
+    }
 
     QJsonObject obj( QJsonObject::fromVariantMap({
                                     {"name", fName},
                                     {"folder", mFolderName },
-                                    {"size", mFileSize}
+                                    {"size", mFileSize},
+                                    {"verify", mVerifyChecksum},
+                                    {"protocol", TransferProtocol::CurrentVersion},
+                                    {"magic", static_cast<qint64>(TransferProtocol::Magic)},
+                                    {"parallel_supported", true},
+                                    {"streams", mRequestedStreams},
+                                    {"transfer_id", mTransferId},
+                                    {"auth", authEnabled},
+                                    {"auth_hash", authHash}
                                 }));
 
     QByteArray headerData( QJsonDocument(obj).toJson() );
 
     writePacket(headerData.size(), PacketType::Header, headerData);
     mIsHeaderSent = true;
+    beginOffsetAckWait();
+}
+
+void Sender::beginOffsetAckWait()
+{
+    mWaitingForOffsetAck = true;
+    mOffsetAckTimer->start(Settings::instance()->getTransferOffsetAckTimeoutMs());
+}
+
+void Sender::onOffsetAckTimeout()
+{
+    if (!mWaitingForOffsetAck)
+        return;
+
+    AppLog::write("transfer",
+                  QString("OffsetAck timeout from %1; assuming legacy receiver and continuing from offset 0")
+                      .arg(mReceiverDev.getAddress().toString()));
+    applyOffsetAck(0, 1, false);
+}
+
+void Sender::applyOffsetAck(qint64 offset, int acceptedStreams, bool peerSupportsParallel)
+{
+    mOffsetAckTimer->stop();
+    if (offset > 0) {
+        peerSupportsParallel = false;
+        acceptedStreams = 1;
+        closeDataSockets();
+    }
+    mActiveStreams = (peerSupportsParallel ? acceptedStreams : 1);
+    if (offset > 0 && mActiveStreams > 1) {
+        AppLog::write("transfer", QString("Parallel resume disabled: offset=%1, fallback to single stream").arg(offset));
+        mActiveStreams = 1;
+    }
+    if (mActiveStreams != mRequestedStreams) {
+        AppLog::write("transfer",
+                      QString("Parallel stream fallback: requested=%1 accepted=%2")
+                          .arg(mRequestedStreams)
+                          .arg(mActiveStreams));
+    }
+
+    if (offset < 0 || offset > mFileSize) {
+        mWaitingForOffsetAck = false;
+        writePacket(0, PacketType::Cancel, QByteArray());
+        mSocket->disconnectFromHost();
+        mInfo->fail(TransferFailureReason::InvalidResumeOffset, tr("Invalid resume offset from receiver."));
+        return;
+    }
+
+    if (offset > 0) {
+        if (!mFile->seek(offset)) {
+            mWaitingForOffsetAck = false;
+            writePacket(0, PacketType::Cancel, QByteArray());
+            mSocket->disconnectFromHost();
+            mInfo->fail(TransferFailureReason::InvalidResumeOffset, tr("Failed to seek file for resume."));
+            return;
+        }
+        hashFilePrefix(offset);
+    } else if (mVerifyChecksum && mHash) {
+        mHash->reset();
+    }
+
+    mBytesRemaining = mFileSize - offset;
+    mNextStripedOffset = offset;
+    if (mFileSize > 0)
+        mInfo->setProgress((int)((mFileSize - mBytesRemaining) * 100 / mFileSize));
+
+    mWaitingForOffsetAck = false;
+    AppLog::write("transfer", QString("Upload resumed at offset %1: %2").arg(offset).arg(mFilePath));
+    sendData();
+}
+
+void Sender::hashFilePrefix(qint64 length)
+{
+    if (!mVerifyChecksum || !mHash || length <= 0)
+        return;
+
+    mHash->reset();
+    const qint64 savedPos = mFile->pos();
+    mFile->seek(0);
+
+    QByteArray buffer;
+    buffer.resize(mFileBuffSize);
+    qint64 remaining = length;
+    while (remaining > 0) {
+        const qint64 toRead = qMin<qint64>(mFileBuffSize, remaining);
+        const qint64 bytesRead = mFile->read(buffer.data(), toRead);
+        if (bytesRead <= 0)
+            break;
+        mHash->addData(buffer.constData(), bytesRead);
+        remaining -= bytesRead;
+    }
+
+    mFile->seek(savedPos);
+}
+
+void Sender::processOffsetAckPacket(QByteArray& data)
+{
+    if (mInfo->getState() == TransferState::Failed || mInfo->getState() == TransferState::Cancelled
+        || mInfo->getState() == TransferState::Finish) {
+        return;
+    }
+
+    if (!mWaitingForOffsetAck)
+        return;
+
+    QJsonObject obj = QJsonDocument::fromJson(data).object();
+    if (obj.value(QStringLiteral("busy")).toBool(false)) {
+        const int retryAfterMs = obj.value(QStringLiteral("retry_after_ms")).toInt(1000);
+        mWaitingForOffsetAck = false;
+        mOffsetAckTimer->stop();
+
+        const int retryMax = Settings::instance()->getTransferRetryMax();
+        if (!mCancelled && mInfo->getAttempt() < retryMax) {
+            const int nextAttempt = mInfo->getAttempt() + 1;
+            if (mSocket)
+                mSocket->disconnectFromHost();
+            scheduleRetry(retryAfterMs, nextAttempt);
+            return;
+        }
+
+        mInfo->fail(TransferFailureReason::AdmissionBusy,
+                    tr("Receiver busy. Retry after %1 ms.").arg(retryAfterMs));
+        if (mSocket)
+            mSocket->disconnectFromHost();
+        return;
+    }
+
+    const qint64 offset = obj.value("offset").toVariant().toLongLong();
+    const bool peerSupportsParallel = obj.value("parallel_supported").toBool(false);
+    const int acceptedStreams = qMax(1, obj.value("accepted_streams").toInt(1));
+    applyOffsetAck(offset, acceptedStreams, peerSupportsParallel);
 }
 
 void Sender::processCancelPacket(QByteArray& data)
@@ -176,6 +712,8 @@ void Sender::processCancelPacket(QByteArray& data)
 
     mInfo->setState(TransferState::Cancelled);
     mInfo->setProgress(0);
+    closeDataSockets();
+    TransferJournal::instance()->remove(mTransferId);
     mSocket->disconnectFromHost();
     mCancelled = true;
 }
@@ -197,4 +735,3 @@ void Sender::processResumePacket(QByteArray& data)
     else
         sendHeader();
 }
-

@@ -21,6 +21,11 @@
 
 #include "transfer.h"
 #include "model/device.h"
+#include <QHash>
+#include <QPointer>
+
+class QCryptographicHash;
+class QSslError;
 
 class Receiver : public Transfer
 {
@@ -30,6 +35,9 @@ public:
     inline Device getSender() const { return mSenderDev; }
     inline qint64 getReceivedFileSize() const { return mFileSize; }
     inline qint64 getBytesWritten() const { return mBytesRead; }
+    inline QString getTransferId() const { return mTransferId; }
+    inline QString getFinalFilePath() const { return mFinalFilePath; }
+    inline QString getPartFilePath() const { return mPartFilePath; }
 
     void resume() override;
     void pause() override;
@@ -37,8 +45,20 @@ public:
 
 private Q_SLOTS:
     void onDisconnected();
+    void onSocketError(QAbstractSocket::SocketError error);
+    void onSslErrors(const QList<QSslError>& errors);
 
 private:
+    void sendOffsetAck(qint64 offset, int acceptedStreams);
+    void hashExistingPartFile();
+    void removePartFile();
+    void finalizeDownload();
+    void adoptDataSocket(QTcpSocket* socket);
+    void processStripedSocketReadyRead(QTcpSocket* socket);
+    void handleStripedPayload(const QByteArray& payload);
+    void closeDataSockets();
+    void failDownloadWrite(const QString& message);
+
     void processHeaderPacket(QByteArray& data) override;
     void processDataPacket(QByteArray& data) override;
     void processFinishPacket(QByteArray& data) override;
@@ -48,6 +68,19 @@ private:
 
     qint64 mFileSize;
     qint64 mBytesRead;
+    bool mVerifyChecksum;
+    bool mResumePartialDownloads;
+    int mAcceptedStreams;
+    QString mFinalFilePath;
+    QString mPartFilePath;
+    QString mTransferId;
+    bool mRegisteredTransferId;
+    bool mAttachProxy;
+    bool mFinishPending;
+    QString mPendingFinishHash;
+    QHash<QTcpSocket*, QByteArray> mDataBuffers;
+    QHash<QTcpSocket*, qint32> mDataPacketSizes;
+    QCryptographicHash* mHash;
 };
 
 #endif // RECEIVER_H

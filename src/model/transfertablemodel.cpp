@@ -19,6 +19,7 @@
 
 #include "transfertablemodel.h"
 #include "util.h"
+#include "transferfailure.h"
 
 TransferTableModel::TransferTableModel(QObject *parent) :
     QAbstractTableModel(parent)
@@ -57,7 +58,7 @@ QVariant TransferTableModel::data(const QModelIndex &index, int role) const
                 case Column::Peer : return info->getPeer().getName();
                 case Column::FileName : return info->getFilePath();
                 case Column::FileSize : return Util::sizeToString(info->getDataSize());
-                case Column::State : return getStateString(info->getState());
+                case Column::State : return getStateString(info->getState(), info->getFailureReason());
                 case Column::Progress : return info->getProgress();
                 default : break; 
                 }
@@ -123,6 +124,7 @@ void TransferTableModel::clearCompleted()
         TransferState state = t->getTransferInfo()->getState();
         if (state == TransferState::Idle ||
                 state == TransferState::Finish ||
+                state == TransferState::Failed ||
                 state == TransferState::Disconnected ||
                 state == TransferState::Cancelled) {
 
@@ -161,16 +163,22 @@ void TransferTableModel::removeTransfer(int index)
     endRemoveRows();
 }
 
-QString TransferTableModel::getStateString(TransferState state) const
+QString TransferTableModel::getStateString(TransferState state, TransferFailureReason reason) const
 {
     switch (state) {
     case TransferState::Idle : return tr("Idle");
+    case TransferState::Queued : return tr("Queued");
     case TransferState::Waiting : return tr("Waiting");
     case TransferState::Disconnected : return tr("Disconnected");
     case TransferState::Paused : return tr("Paused");
     case TransferState::Cancelled : return tr("Cancelled");
     case TransferState::Transfering : return tr("Transfering");
     case TransferState::Finish : return tr("Finish");
+    case TransferState::Failed : {
+        if (reason != TransferFailureReason::None)
+            return tr("Failed (%1)").arg(transferFailureReasonName(reason));
+        return tr("Failed");
+    }
     }
 
     return QString();
@@ -180,12 +188,14 @@ QColor TransferTableModel::getStateColor(TransferState state) const
 {
     switch (state) {
     case TransferState::Idle : return QColor("black");
+    case TransferState::Queued : return QColor("#888800");
     case TransferState::Waiting : return QColor("orange");
     case TransferState::Disconnected : return QColor("red");
     case TransferState::Paused : return QColor("orange");
     case TransferState::Cancelled : return QColor("red");
     case TransferState::Transfering : return QColor("blue");
     case TransferState::Finish : return QColor("green");
+    case TransferState::Failed : return QColor("red");
     }
 
     return QColor();

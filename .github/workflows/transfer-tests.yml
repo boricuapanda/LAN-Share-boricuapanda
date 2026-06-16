@@ -1,0 +1,27 @@
+name: Transfer Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qtbase5-dev qt5-qmake qtbase5-dev-tools
+
+      - name: Run transfer tests
+        run: |
+          chmod +x scripts/run-transfer-tests.sh
+          ./scripts/run-transfer-tests.sh
+
+      - name: Run UI smoke tests
+        run: |
+          chmod +x scripts/run-ui-tests.sh
+          ./scripts/run-ui-tests.sh

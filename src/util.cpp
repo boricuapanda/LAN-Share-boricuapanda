@@ -16,10 +16,98 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <QAbstractItemView>
+#include <QCryptographicHash>
+#include <QFileDialog>
 #include <QFileInfo>
+#include <QListView>
+#include <QSet>
+#include <QStorageInfo>
+#include <QTreeView>
+#include <QUrl>
+#include <QWidget>
 
 #include "util.h"
 #include "settings.h"
+
+namespace {
+
+QList<QUrl> storageSidebarUrls()
+{
+    QSet<QString> paths;
+    auto addPath = [&](const QString& path) {
+        const QString cleaned = QDir::cleanPath(path);
+        if (!cleaned.isEmpty() && QDir(cleaned).exists())
+            paths.insert(cleaned);
+    };
+
+    addPath(QDir::homePath());
+    addPath("/");
+    addPath("/srv/temp-storage");
+    addPath("/mnt");
+
+    const QDir mediaDir("/run/media");
+    if (mediaDir.exists()) {
+        for (const QString& user : mediaDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+            const QDir userDir(mediaDir.filePath(user));
+            for (const QString& mount : userDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
+                addPath(userDir.filePath(mount));
+        }
+    }
+
+    const QDir legacyMediaDir("/media");
+    if (legacyMediaDir.exists()) {
+        for (const QString& entry : legacyMediaDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
+            addPath(legacyMediaDir.filePath(entry));
+    }
+
+    QList<QUrl> urls;
+    for (const QString& path : paths)
+        urls << QUrl::fromLocalFile(path);
+    return urls;
+}
+
+void configureStorageDialog(QFileDialog& dialog, bool allowMultiple);
+
+void configureDirectoryDialog(QFileDialog& dialog, bool allowMultiple)
+{
+    dialog.setFileMode(QFileDialog::Directory);
+    dialog.setOption(QFileDialog::ShowDirsOnly, true);
+    configureStorageDialog(dialog, allowMultiple);
+}
+
+void configureOpenFileDialog(QFileDialog& dialog)
+{
+    dialog.setFileMode(QFileDialog::ExistingFiles);
+    configureStorageDialog(dialog, true);
+}
+
+void configureStorageDialog(QFileDialog& dialog, bool allowMultiple)
+{
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog.setSidebarUrls(storageSidebarUrls());
+
+    const auto updateTitle = [&dialog](const QString& path) {
+        const QString freeSpace = Util::freeSpaceString(path);
+        const QString baseTitle = dialog.windowTitle().section(QStringLiteral(" — "), 0, 0);
+        dialog.setWindowTitle(freeSpace.isEmpty() ? baseTitle : baseTitle + QStringLiteral(" — ") + freeSpace);
+    };
+    QObject::connect(&dialog, &QFileDialog::directoryEntered, &dialog, updateTitle);
+    QObject::connect(&dialog, &QFileDialog::currentChanged, &dialog, [&](const QString& path) {
+        if (!path.isEmpty())
+            updateTitle(QFileInfo(path).absolutePath());
+    });
+    updateTitle(dialog.directory().absolutePath());
+
+    if (allowMultiple) {
+        if (QListView* listView = dialog.findChild<QListView*>("listView"))
+            listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        if (QTreeView* treeView = dialog.findChild<QTreeView*>("treeView"))
+            treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    }
+}
+
+} // namespace
 
 QString Util::sizeToString(qint64 size)
 {
@@ -101,4 +189,108 @@ QString Util::getUniqueFileName(const QString& fileName, const QString& folderPa
     }
 
     return fPath;
+}
+
+QString Util::selectExistingDirectory(QWidget* parent,
+                                      const QString& title,
+                                      const QString& startDir)
+{
+    const QString initialDir = startDir.isEmpty() ? QDir::homePath() : startDir;
+    QFileDialog dialog(parent, title, initialDir);
+    configureDirectoryDialog(dialog, false);
+    if (dialog.exec() != QDialog::Accepted)
+        return QString();
+
+    const QStringList selected = dialog.selectedFiles();
+    return selected.isEmpty() ? QString() : selected.first();
+}
+
+QStringList Util::selectExistingDirectories(QWidget* parent,
+                                              const QString& title,
+                                              const QString& startDir)
+{
+    const QString initialDir = startDir.isEmpty() ? QDir::homePath() : startDir;
+    QFileDialog dialog(parent, title, initialDir);
+    configureDirectoryDialog(dialog, true);
+    if (dialog.exec() != QDialog::Accepted)
+        return QStringList();
+
+    return dialog.selectedFiles();
+}
+
+QStringList Util::selectOpenFileNames(QWidget* parent,
+                                      const QString& title,
+                                      const QString& startDir)
+{
+    const QString initialDir = startDir.isEmpty() ? QDir::homePath() : startDir;
+    QFileDialog dialog(parent, title, initialDir);
+    configureOpenFileDialog(dialog);
+    if (dialog.exec() != QDialog::Accepted)
+        return QStringList();
+
+    return dialog.selectedFiles();
+}
+
+qint64 Util::availableBytes(const QString& path)
+{
+    const QStorageInfo storage(path);
+    if (!storage.isValid() || !storage.isReady())
+        return -1;
+    return storage.bytesAvailable();
+}
+
+QString Util::fileSha256(const QString& filePath)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return QString();
+
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    const qint64 bufferSize = 1024 * 1024;
+    QByteArray buffer;
+    buffer.resize(bufferSize);
+
+    while (true) {
+        const qint64 bytesRead = file.read(buffer.data(), bufferSize);
+        if (bytesRead <= 0)
+            break;
+        hash.addData(buffer.constData(), bytesRead);
+    }
+
+    return QString::fromLatin1(hash.result().toHex());
+}
+
+QString Util::freeSpaceString(const QString& path)
+{
+    const QStorageInfo storage(path);
+    if (!storage.isValid() || !storage.isReady())
+        return QString();
+
+    return QObject::tr("Free: %1").arg(sizeToString(storage.bytesAvailable()));
+}
+
+QString Util::formatSpeed(double bytesPerSecond)
+{
+    if (bytesPerSecond < 1.0)
+        return QStringLiteral("—");
+
+    return QObject::tr("%1/s").arg(sizeToString((qint64)bytesPerSecond));
+}
+
+QString Util::formatEta(qint64 secondsRemaining)
+{
+    if (secondsRemaining < 0)
+        return QObject::tr("ETA —");
+    if (secondsRemaining == 0)
+        return QObject::tr("ETA <1s");
+
+    const qint64 hours = secondsRemaining / 3600;
+    const qint64 minutes = (secondsRemaining % 3600) / 60;
+    const qint64 seconds = secondsRemaining % 60;
+
+    if (hours > 0)
+        return QObject::tr("ETA %1h %2m").arg(hours).arg(minutes);
+    if (minutes > 0)
+        return QObject::tr("ETA %1m %2s").arg(minutes).arg(seconds);
+    return QObject::tr("ETA %1s").arg(seconds);
 }

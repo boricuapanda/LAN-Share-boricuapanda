@@ -28,8 +28,17 @@
 #define DefaultBroadcastPort        56780
 #define DefaultTransferPort         17116
 #define DefaultBroadcastInterval    5000    // 5 secs
-#define DefaultFileBufferSize       98304   // 96 KB
-#define MaxFileBufferSize           1024*1024 // 1 MB
+#define DefaultFileBufferSize       (1024 * 1024)      // 1 MB
+#define MaxFileBufferSize           (16 * 1024 * 1024) // 16 MB
+#define DefaultTransferIdleTimeoutMs 120000
+#define DefaultMaxPacketSize        (20 * 1024 * 1024)
+#define DefaultMaxConcurrentDownloads 8
+#define DefaultTransferRetryMax     2
+#define DefaultTransferRetryBaseMs  1000
+#define DefaultTransferOffsetAckTimeoutMs 30000
+#define DefaultJournalRetentionDays 7
+#define MinParallelStreams          1
+#define MaxParallelStreams          8
 
 Settings* Settings::obj = new Settings;
 Settings::Settings()
@@ -74,7 +83,7 @@ void Settings::setTransferPort(quint16 port)
 
 void Settings::setFileBufferSize(qint32 size)
 {
-    if (size > 0 && size < MaxFileBufferSize)
+    if (size > 0 && size <= MaxFileBufferSize)
         mFileBuffSize = size;
 }
 
@@ -87,6 +96,94 @@ void Settings::setDownloadDir(const QString& dir)
 void Settings::setReplaceExistingFile(bool replace)
 {
     mReplaceExistingFile = replace;
+}
+
+void Settings::setVerifyChecksum(bool verify)
+{
+    mVerifyChecksum = verify;
+}
+
+void Settings::setResumePartialDownloads(bool resume)
+{
+    mResumePartialDownloads = resume;
+}
+
+void Settings::setMaxConcurrentTransfers(int count)
+{
+    if (count >= 0 && count <= 100)
+        mMaxConcurrentTransfers = count;
+}
+
+void Settings::setParallelStreams(int count)
+{
+    if (count < MinParallelStreams)
+        mParallelStreams = MinParallelStreams;
+    else if (count > MaxParallelStreams)
+        mParallelStreams = MaxParallelStreams;
+    else
+        mParallelStreams = count;
+}
+
+void Settings::setAuthEnabled(bool enabled)
+{
+    mAuthEnabled = enabled;
+}
+
+void Settings::setAuthToken(const QString& token)
+{
+    mAuthToken = token;
+}
+
+void Settings::setTlsEnabled(bool enabled)
+{
+    mTlsEnabled = enabled;
+}
+
+void Settings::setTransferIdleTimeoutMs(int ms)
+{
+    if (ms >= 0 && ms <= 3600000)
+        mTransferIdleTimeoutMs = ms;
+}
+
+void Settings::setMaxPacketSize(qint32 size)
+{
+    if (size >= 1024 && size <= 64 * 1024 * 1024)
+        mMaxPacketSize = size;
+}
+
+void Settings::setMaxConcurrentDownloads(int count)
+{
+    if (count >= 0 && count <= 100)
+        mMaxConcurrentDownloads = count;
+}
+
+void Settings::setTransferRetryMax(int count)
+{
+    if (count >= 0 && count <= 10)
+        mTransferRetryMax = count;
+}
+
+void Settings::setTransferRetryBaseMs(int ms)
+{
+    if (ms >= 100 && ms <= 60000)
+        mTransferRetryBaseMs = ms;
+}
+
+void Settings::setTransferOffsetAckTimeoutMs(int ms)
+{
+    if (ms >= 1000 && ms <= 300000)
+        mTransferOffsetAckTimeoutMs = ms;
+}
+
+void Settings::setJournalEnabled(bool enabled)
+{
+    mJournalEnabled = enabled;
+}
+
+void Settings::setJournalRetentionDays(int days)
+{
+    if (days >= 0 && days <= 365)
+        mJournalRetentionDays = days;
 }
 
 void Settings::loadSettings()
@@ -105,6 +202,21 @@ void Settings::loadSettings()
 
     mBCInterval = settings.value("BroadcastInterval", DefaultBroadcastInterval).value<quint16>();
     mReplaceExistingFile = settings.value("ReplaceExistingFile", false).toBool();
+    mVerifyChecksum = settings.value("VerifyChecksum", true).toBool();
+    mResumePartialDownloads = settings.value("ResumePartialDownloads", true).toBool();
+    mMaxConcurrentTransfers = settings.value("MaxConcurrentTransfers", 4).toInt();
+    setParallelStreams(settings.value("ParallelStreams", 1).toInt());
+    mAuthEnabled = settings.value("AuthEnabled", false).toBool();
+    mAuthToken = settings.value("AuthToken", QString()).toString();
+    mTlsEnabled = settings.value("TlsEnabled", true).toBool();
+    mTransferIdleTimeoutMs = settings.value("TransferIdleTimeoutMs", DefaultTransferIdleTimeoutMs).toInt();
+    mMaxPacketSize = settings.value("MaxPacketSize", DefaultMaxPacketSize).value<qint32>();
+    mMaxConcurrentDownloads = settings.value("MaxConcurrentDownloads", DefaultMaxConcurrentDownloads).toInt();
+    mTransferRetryMax = settings.value("TransferRetryMax", DefaultTransferRetryMax).toInt();
+    mTransferRetryBaseMs = settings.value("TransferRetryBaseMs", DefaultTransferRetryBaseMs).toInt();
+    mTransferOffsetAckTimeoutMs = settings.value("TransferOffsetAckTimeoutMs", DefaultTransferOffsetAckTimeoutMs).toInt();
+    mJournalEnabled = settings.value("JournalEnabled", true).toBool();
+    mJournalRetentionDays = settings.value("JournalRetentionDays", DefaultJournalRetentionDays).toInt();
 }
 
 QString Settings::getDefaultDownloadPath()
@@ -127,6 +239,21 @@ void Settings::saveSettings()
     settings.setValue("DownloadDir", mDownloadDir);
     settings.setValue("BroadcastInterval", mBCInterval);
     settings.setValue("ReplaceExistingFile", mReplaceExistingFile);
+    settings.setValue("VerifyChecksum", mVerifyChecksum);
+    settings.setValue("ResumePartialDownloads", mResumePartialDownloads);
+    settings.setValue("MaxConcurrentTransfers", mMaxConcurrentTransfers);
+    settings.setValue("ParallelStreams", mParallelStreams);
+    settings.setValue("AuthEnabled", mAuthEnabled);
+    settings.setValue("AuthToken", mAuthToken);
+    settings.setValue("TlsEnabled", mTlsEnabled);
+    settings.setValue("TransferIdleTimeoutMs", mTransferIdleTimeoutMs);
+    settings.setValue("MaxPacketSize", mMaxPacketSize);
+    settings.setValue("MaxConcurrentDownloads", mMaxConcurrentDownloads);
+    settings.setValue("TransferRetryMax", mTransferRetryMax);
+    settings.setValue("TransferRetryBaseMs", mTransferRetryBaseMs);
+    settings.setValue("TransferOffsetAckTimeoutMs", mTransferOffsetAckTimeoutMs);
+    settings.setValue("JournalEnabled", mJournalEnabled);
+    settings.setValue("JournalRetentionDays", mJournalRetentionDays);
 }
 
 void Settings::reset()
@@ -137,6 +264,21 @@ void Settings::reset()
     mBCInterval = DefaultBroadcastInterval;
     mFileBuffSize = DefaultFileBufferSize;
     mDownloadDir = getDefaultDownloadPath();
+    mVerifyChecksum = true;
+    mResumePartialDownloads = true;
+    mMaxConcurrentTransfers = 4;
+    mParallelStreams = 1;
+    mAuthEnabled = false;
+    mAuthToken.clear();
+    mTlsEnabled = true;
+    mTransferIdleTimeoutMs = DefaultTransferIdleTimeoutMs;
+    mMaxPacketSize = DefaultMaxPacketSize;
+    mMaxConcurrentDownloads = DefaultMaxConcurrentDownloads;
+    mTransferRetryMax = DefaultTransferRetryMax;
+    mTransferRetryBaseMs = DefaultTransferRetryBaseMs;
+    mTransferOffsetAckTimeoutMs = DefaultTransferOffsetAckTimeoutMs;
+    mJournalEnabled = true;
+    mJournalRetentionDays = DefaultJournalRetentionDays;
 }
 
 quint16 Settings::getBroadcastPort() const
@@ -187,5 +329,80 @@ QHostAddress Settings::getDeviceAddress() const
 bool Settings::getReplaceExistingFile() const
 {
     return mReplaceExistingFile;
+}
+
+bool Settings::getVerifyChecksum() const
+{
+    return mVerifyChecksum;
+}
+
+bool Settings::getResumePartialDownloads() const
+{
+    return mResumePartialDownloads;
+}
+
+int Settings::getMaxConcurrentTransfers() const
+{
+    return mMaxConcurrentTransfers;
+}
+
+int Settings::getParallelStreams() const
+{
+    return mParallelStreams;
+}
+
+bool Settings::getAuthEnabled() const
+{
+    return mAuthEnabled;
+}
+
+QString Settings::getAuthToken() const
+{
+    return mAuthToken;
+}
+
+bool Settings::getTlsEnabled() const
+{
+    return mTlsEnabled;
+}
+
+int Settings::getTransferIdleTimeoutMs() const
+{
+    return mTransferIdleTimeoutMs;
+}
+
+qint32 Settings::getMaxPacketSize() const
+{
+    return mMaxPacketSize;
+}
+
+int Settings::getMaxConcurrentDownloads() const
+{
+    return mMaxConcurrentDownloads;
+}
+
+int Settings::getTransferRetryMax() const
+{
+    return mTransferRetryMax;
+}
+
+int Settings::getTransferRetryBaseMs() const
+{
+    return mTransferRetryBaseMs;
+}
+
+int Settings::getTransferOffsetAckTimeoutMs() const
+{
+    return mTransferOffsetAckTimeoutMs;
+}
+
+bool Settings::getJournalEnabled() const
+{
+    return mJournalEnabled;
+}
+
+int Settings::getJournalRetentionDays() const
+{
+    return mJournalRetentionDays;
 }
 

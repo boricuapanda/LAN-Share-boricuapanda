@@ -26,6 +26,7 @@
 
 #include "transfer/transfer.h"
 #include "transferinfo.h"
+#include "transferfailure.h"
 
 class TransferTableModel : public QAbstractTableModel
 {
@@ -54,7 +55,7 @@ public:
     };
 
 private:
-    QString getStateString(TransferState state) const;
+    QString getStateString(TransferState state, TransferFailureReason reason) const;
     QColor getStateColor(TransferState state) const;
 
     QVector<Transfer*> mTransfers;

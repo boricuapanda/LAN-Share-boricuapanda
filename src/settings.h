@@ -39,7 +39,7 @@ const QString PROGRAM_NAME{"LAN Share"};
 const QString PROGRAM_DESC{"A simple program that let you transfer files over local area network (LAN) easily."};
 constexpr int PROGRAM_X_VER{1};
 constexpr int PROGRAM_Y_VER{2};
-constexpr int PROGRAM_Z_VER{1};
+constexpr int PROGRAM_Z_VER{3};
 const QString SETTINGS_FILE{"LANSConfig"};
 
 class Settings
@@ -58,7 +58,22 @@ public:
     QString getDeviceName() const;
     QHostAddress getDeviceAddress() const;
     bool getReplaceExistingFile() const;
-    
+    bool getVerifyChecksum() const;
+    bool getResumePartialDownloads() const;
+    int getMaxConcurrentTransfers() const;
+    int getParallelStreams() const;
+    bool getAuthEnabled() const;
+    QString getAuthToken() const;
+    bool getTlsEnabled() const;
+    int getTransferIdleTimeoutMs() const;
+    qint32 getMaxPacketSize() const;
+    int getMaxConcurrentDownloads() const;
+    int getTransferRetryMax() const;
+    int getTransferRetryBaseMs() const;
+    int getTransferOffsetAckTimeoutMs() const;
+    bool getJournalEnabled() const;
+    int getJournalRetentionDays() const;
+
     void setDeviceName(const QString& name);
     void setBroadcastPort(quint16 port);
     void setTransferPort(quint16 port);
@@ -66,6 +81,21 @@ public:
     void setFileBufferSize(qint32 size);
     void setDownloadDir(const QString& dir);
     void setReplaceExistingFile(bool replace);
+    void setVerifyChecksum(bool verify);
+    void setResumePartialDownloads(bool resume);
+    void setMaxConcurrentTransfers(int count);
+    void setParallelStreams(int count);
+    void setAuthEnabled(bool enabled);
+    void setAuthToken(const QString& token);
+    void setTlsEnabled(bool enabled);
+    void setTransferIdleTimeoutMs(int ms);
+    void setMaxPacketSize(qint32 size);
+    void setMaxConcurrentDownloads(int count);
+    void setTransferRetryMax(int count);
+    void setTransferRetryBaseMs(int ms);
+    void setTransferOffsetAckTimeoutMs(int ms);
+    void setJournalEnabled(bool enabled);
+    void setJournalRetentionDays(int days);
 
     void saveSettings();
     void reset();
@@ -83,6 +113,21 @@ private:
     qint32 mFileBuffSize{0};
     QString mDownloadDir;
     bool mReplaceExistingFile{false};
+    bool mVerifyChecksum{true};
+    bool mResumePartialDownloads{true};
+    int mMaxConcurrentTransfers{4};
+    int mParallelStreams{1};
+    bool mAuthEnabled{false};
+    QString mAuthToken;
+    bool mTlsEnabled{true};
+    int mTransferIdleTimeoutMs{120000};
+    qint32 mMaxPacketSize{20 * 1024 * 1024};
+    int mMaxConcurrentDownloads{8};
+    int mTransferRetryMax{2};
+    int mTransferRetryBaseMs{1000};
+    int mTransferOffsetAckTimeoutMs{30000};
+    bool mJournalEnabled{true};
+    int mJournalRetentionDays{7};
 
     static Settings* obj;
 };

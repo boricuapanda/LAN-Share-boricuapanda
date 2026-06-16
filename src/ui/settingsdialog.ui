@@ -6,20 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>450</width>
-    <height>470</height>
+    <width>480</width>
+    <height>580</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>450</width>
-    <height>470</height>
-   </size>
-  </property>
-  <property name="maximumSize">
-   <size>
-    <width>450</width>
-    <height>470</height>
+    <width>480</width>
+    <height>520</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -248,27 +242,122 @@
            </widget>
           </item>
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_5">
+           <widget class="QCheckBox" name="verifyChecksumCheckBox">
+            <property name="text">
+             <string>Verify SHA256 checksum after transfer</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="resumePartialCheckBox">
+            <property name="text">
+             <string>Resume interrupted downloads (.part files)</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="authCheckBox">
+            <property name="text">
+             <string>Require transfer authentication token</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="tlsCheckBox">
+            <property name="toolTip">
+             <string>Encrypt transfer sockets with TLS. Keep enabled unless you need legacy protocol tests.</string>
+            </property>
+            <property name="text">
+             <string>Enable TLS encryption for transfers</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_tlsTrust">
             <item>
-             <widget class="QLabel" name="label_10">
-              <property name="enabled">
-               <bool>false</bool>
-              </property>
+             <widget class="QLabel" name="tlsPinnedCountLabel">
               <property name="text">
-               <string>Max. Current Transfers:</string>
+               <string>Pinned peers: 0</string>
               </property>
              </widget>
             </item>
             <item>
-             <widget class="QSpinBox" name="spinBox">
-              <property name="enabled">
-               <bool>false</bool>
+             <widget class="QPushButton" name="manageTlsTrustBtn">
+              <property name="text">
+               <string>Manage Trust...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_tlsTrust">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_auth">
+            <item>
+             <widget class="QLabel" name="label_auth_token">
+              <property name="text">
+               <string>Shared token:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="authTokenLineEdit">
+              <property name="echoMode">
+               <enum>QLineEdit::Password</enum>
+              </property>
+              <property name="placeholderText">
+               <string>Same token on both devices</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_5">
+            <item>
+             <widget class="QLabel" name="label_10">
+              <property name="text">
+               <string>Max concurrent uploads:</string>
+              </property>
+              <property name="toolTip">
+               <string>Limit how many uploads run at once. 0 = unlimited.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="maxTransfersSpinBox">
+              <property name="toolTip">
+               <string>0 = unlimited concurrent uploads</string>
               </property>
               <property name="minimum">
-               <number>1</number>
+               <number>0</number>
               </property>
               <property name="maximum">
                <number>100</number>
+              </property>
+              <property name="value">
+               <number>4</number>
               </property>
              </widget>
             </item>
@@ -284,6 +373,204 @@
                </size>
               </property>
              </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_maxDownloads">
+            <item>
+             <widget class="QLabel" name="label_maxDownloads">
+              <property name="text">
+               <string>Max concurrent downloads:</string>
+              </property>
+              <property name="toolTip">
+               <string>Limit incoming transfers at once. 0 = unlimited.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="maxDownloadsSpinBox">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>100</number>
+              </property>
+              <property name="value">
+               <number>8</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_maxDownloads">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_retryMax">
+            <item>
+             <widget class="QLabel" name="label_retryMax">
+              <property name="text">
+               <string>Upload retry attempts:</string>
+              </property>
+              <property name="toolTip">
+               <string>Reconnect attempts after disconnect or busy receiver.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="transferRetryMaxSpinBox">
+              <property name="maximum">
+               <number>10</number>
+              </property>
+              <property name="value">
+               <number>2</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_retryMax">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_retryBase">
+            <item>
+             <widget class="QLabel" name="label_retryBase">
+              <property name="text">
+               <string>Retry backoff base:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="transferRetryBaseSpinBox">
+              <property name="suffix">
+               <string> ms</string>
+              </property>
+              <property name="minimum">
+               <number>100</number>
+              </property>
+              <property name="maximum">
+               <number>60000</number>
+              </property>
+              <property name="singleStep">
+               <number>100</number>
+              </property>
+              <property name="value">
+               <number>1000</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_retryBase">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="journalEnabledCheckBox">
+            <property name="text">
+             <string>Keep transfer journal for crash recovery</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_journalRetention">
+            <item>
+             <widget class="QLabel" name="label_journalRetention">
+              <property name="text">
+               <string>Journal retention:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="journalRetentionSpinBox">
+              <property name="suffix">
+               <string> days</string>
+              </property>
+              <property name="maximum">
+               <number>365</number>
+              </property>
+              <property name="value">
+               <number>7</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_journalRetention">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_log">
+            <item>
+             <widget class="QLabel" name="label_log">
+              <property name="text">
+               <string>Log file:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="logPathLabel">
+              <property name="text">
+               <string>-</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+              <property name="textInteractionFlags">
+               <set>Qt::TextSelectableByMouse</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="viewLogBtn">
+              <property name="text">
+               <string>View...</string>
+              </property>
+             </widget>
             </item>
            </layout>
           </item>
@@ -448,12 +735,175 @@
                <number>8</number>
               </property>
               <property name="maximum">
-               <number>1024</number>
+               <number>16384</number>
               </property>
              </widget>
             </item>
             <item>
              <spacer name="horizontalSpacer_5">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_parallelStreams">
+            <item>
+             <widget class="QLabel" name="label_parallelStreams">
+              <property name="text">
+               <string>Parallel streams:</string>
+              </property>
+              <property name="toolTip">
+               <string>Used for single-file uploads when both peers support it.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="parallelStreamsSpinBox">
+              <property name="minimum">
+               <number>1</number>
+              </property>
+              <property name="maximum">
+               <number>8</number>
+              </property>
+              <property name="value">
+               <number>1</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_parallelStreams">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_idleTimeout">
+            <item>
+             <widget class="QLabel" name="label_idleTimeout">
+              <property name="text">
+               <string>Transfer idle timeout:</string>
+              </property>
+              <property name="toolTip">
+               <string>Fail transfer after inactivity. 0 = disabled.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="transferIdleTimeoutSpinBox">
+              <property name="suffix">
+               <string> sec</string>
+              </property>
+              <property name="maximum">
+               <number>3600</number>
+              </property>
+              <property name="value">
+               <number>120</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_idleTimeout">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_maxPacket">
+            <item>
+             <widget class="QLabel" name="label_maxPacket">
+              <property name="text">
+               <string>Max packet size:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="maxPacketSizeSpinBox">
+              <property name="suffix">
+               <string> KB</string>
+              </property>
+              <property name="minimum">
+               <number>64</number>
+              </property>
+              <property name="maximum">
+               <number>65536</number>
+              </property>
+              <property name="value">
+               <number>20480</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_maxPacket">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_offsetAck">
+            <item>
+             <widget class="QLabel" name="label_offsetAck">
+              <property name="text">
+               <string>OffsetAck wait:</string>
+              </property>
+              <property name="toolTip">
+               <string>How long to wait for resume offset before legacy fallback.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="offsetAckTimeoutSpinBox">
+              <property name="suffix">
+               <string> sec</string>
+              </property>
+              <property name="minimum">
+               <number>1</number>
+              </property>
+              <property name="maximum">
+               <number>300</number>
+              </property>
+              <property name="value">
+               <number>30</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_offsetAck">
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
@@ -598,11 +1048,25 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>viewLogBtn</sender>
+   <signal>clicked()</signal>
+   <receiver>SettingsDialog</receiver>
+   <slot>onViewLogClicked()</slot>
+  </connection>
+  <connection>
+   <sender>manageTlsTrustBtn</sender>
+   <signal>clicked()</signal>
+   <receiver>SettingsDialog</receiver>
+   <slot>onManageTlsTrustClicked()</slot>
+  </connection>
  </connections>
  <slots>
   <slot>onCancelClicked()</slot>
   <slot>onSaveClicked()</slot>
   <slot>onResetClicked()</slot>
   <slot>onSelectDownDirClicked()</slot>
+  <slot>onViewLogClicked()</slot>
+  <slot>onManageTlsTrustClicked()</slot>
  </slots>
 </ui>

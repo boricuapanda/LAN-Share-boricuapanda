@@ -24,10 +24,26 @@
 #include <QVector>
 #include <QPair>
 
+class QWidget;
+
 class Util
 {
 public:
     static QString sizeToString(qint64 size);
+
+    static QString selectExistingDirectory(QWidget* parent,
+                                           const QString& title,
+                                           const QString& startDir = QString());
+
+    static QStringList selectExistingDirectories(QWidget* parent,
+                                                 const QString& title,
+                                                 const QString& startDir = QString());
+
+    static QStringList selectOpenFileNames(QWidget* parent,
+                                           const QString& title,
+                                           const QString& startDir = QString());
+
+    static qint64 availableBytes(const QString& path);
 
     /*
      *  relative dir name
@@ -41,6 +57,10 @@ public:
     static QString parseAppVersion(bool onlyVerNum = true);
 
     static QString getUniqueFileName(const QString& fileName, const QString& folderPath);
+    static QString fileSha256(const QString& filePath);
+    static QString freeSpaceString(const QString& path);
+    static QString formatSpeed(double bytesPerSecond);
+    static QString formatEta(qint64 secondsRemaining);
 };
 
 #endif // UTIL_H

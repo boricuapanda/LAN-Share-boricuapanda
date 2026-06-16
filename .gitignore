@@ -34,3 +34,9 @@ moc_*.cpp
 qrc_*.cpp
 
 build
+tests/build
+tests/ui_build
+
+# Local / editor artifacts
+cursor_chat_*.json
+*.cursor-chat.json

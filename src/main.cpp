@@ -23,11 +23,22 @@
 #include "ui/mainwindow.h"
 #include "singleinstance.h"
 #include "util.h"
+#include "log.h"
+#include "transfer/transferjournal.h"
 
 int main(int argc, char *argv[])
 {
+    if (qEnvironmentVariableIsSet("WAYLAND_DISPLAY"))
+        QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
+    AppLog::install();
+
+    QString recoverySummary;
+    TransferJournal::instance()->recoverOnStartup(&recoverySummary);
+    if (!recoverySummary.isEmpty())
+        AppLog::write(QStringLiteral("journal"), recoverySummary);
 
     SingleInstance si(PROGRAM_NAME);
     if (si.hasPreviousInstance()) {

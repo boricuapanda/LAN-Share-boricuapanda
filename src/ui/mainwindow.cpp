@@ -26,6 +26,8 @@
 #include <QtDebug>
 #include <QListView>
 #include <QTreeView>
+#include <QVBoxLayout>
+#include <QLabel>
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -34,9 +36,41 @@
 #include "settingsdialog.h"
 #include "settings.h"
 #include "aboutdialog.h"
+#include "logviewerdialog.h"
 #include "util.h"
+#include "log.h"
 #include "transfer/sender.h"
 #include "transfer/receiver.h"
+
+namespace {
+
+QWidget* createTransferProgressWidget(TransferInfo* info)
+{
+    auto* container = new QWidget();
+    auto* layout = new QVBoxLayout(container);
+    layout->setContentsMargins(2, 2, 2, 2);
+    layout->setSpacing(0);
+
+    auto* progress = new QProgressBar(container);
+    auto* stats = new QLabel(container);
+    stats->setStyleSheet(QStringLiteral("font-size: 10px; color: #666;"));
+
+    layout->addWidget(progress);
+    layout->addWidget(stats);
+
+    const auto updateStats = [info, stats]() {
+        stats->setText(info->getSpeedText() + QStringLiteral("  ") + info->getEtaText());
+    };
+
+    QObject::connect(info, &TransferInfo::progressChanged, progress, &QProgressBar::setValue);
+    QObject::connect(info, &TransferInfo::statsChanged, container, updateStats);
+    QObject::connect(info, &TransferInfo::progressChanged, container, updateStats);
+    updateStats();
+
+    return container;
+}
+
+} // namespace
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -63,10 +97,10 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->receiverTableView->setModel(mReceiverModel);
 
     ui->senderTableView->setColumnWidth((int)TransferTableModel::Column::FileName, 340);
-    ui->senderTableView->setColumnWidth((int)TransferTableModel::Column::Progress, 160);
+    ui->senderTableView->setColumnWidth((int)TransferTableModel::Column::Progress, 200);
 
     ui->receiverTableView->setColumnWidth((int)TransferTableModel::Column::FileName, 340);
-    ui->receiverTableView->setColumnWidth((int)TransferTableModel::Column::Progress, 160);
+    ui->receiverTableView->setColumnWidth((int)TransferTableModel::Column::Progress, 200);
 
     connectSignals();
 }
@@ -94,7 +128,8 @@ void MainWindow::closeEvent(QCloseEvent *event)
         TransferState state = t->getTransferInfo()->getState();
         return state == TransferState::Paused ||
                 state == TransferState::Transfering ||
-                state == TransferState::Waiting;
+                state == TransferState::Waiting ||
+                state == TransferState::Queued;
     };
 
     auto checkTransferModel = [&](TransferTableModel* model) {
@@ -160,18 +195,73 @@ void MainWindow::connectSignals()
 void MainWindow::sendFile(const QString& folderName, const QString &filePath, const Device &receiver)
 {
     Sender* sender = new Sender(receiver, folderName, filePath, this);
-    sender->start();
     mSenderModel->insertTransfer(sender);
     QModelIndex progressIdx = mSenderModel->index(0, (int)TransferTableModel::Column::Progress);
 
-    /*
-     * tambah progress bar pada item transfer
-     */
-    QProgressBar* progress = new QProgressBar();
-    connect(sender->getTransferInfo(), &TransferInfo::progressChanged, progress, &QProgressBar::setValue);
-
-    ui->senderTableView->setIndexWidget(progressIdx, progress);
+    QWidget* progressWidget = createTransferProgressWidget(sender->getTransferInfo());
+    ui->senderTableView->setIndexWidget(progressIdx, progressWidget);
     ui->senderTableView->scrollToTop();
+
+    TransferInfo* info = sender->getTransferInfo();
+    info->setFilePath(filePath);
+    connectSenderQueueSignals(info);
+
+    const int maxTransfers = Settings::instance()->getMaxConcurrentTransfers();
+    if (maxTransfers > 0 && activeSenderCount() >= maxTransfers) {
+        info->setState(TransferState::Queued);
+        AppLog::write("transfer", QString("Upload queued: %1").arg(filePath));
+    } else if (!sender->start()) {
+        AppLog::write("transfer", QString("Upload failed to start: %1").arg(filePath));
+    }
+}
+
+int MainWindow::activeSenderCount() const
+{
+    int count = 0;
+    const int rows = mSenderModel->rowCount();
+    for (int i = 0; i < rows; ++i) {
+        const TransferState state = mSenderModel->getTransferInfo(i)->getState();
+        if (state == TransferState::Waiting ||
+                state == TransferState::Transfering ||
+                state == TransferState::Paused) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+void MainWindow::connectSenderQueueSignals(TransferInfo* info)
+{
+    connect(info, &TransferInfo::done, this, &MainWindow::processSendQueue);
+    connect(info, &TransferInfo::errorOcurred, this, &MainWindow::processSendQueue);
+    connect(info, &TransferInfo::stateChanged, this, [this](TransferState state) {
+        if (state == TransferState::Cancelled || state == TransferState::Disconnected)
+            processSendQueue();
+    });
+}
+
+void MainWindow::processSendQueue()
+{
+    const int maxTransfers = Settings::instance()->getMaxConcurrentTransfers();
+    if (maxTransfers == 0)
+        return;
+
+    int active = activeSenderCount();
+    const int rows = mSenderModel->rowCount();
+    for (int i = rows - 1; i >= 0 && active < maxTransfers; --i) {
+        TransferInfo* info = mSenderModel->getTransferInfo(i);
+        if (info->getState() != TransferState::Queued)
+            continue;
+
+        auto* sender = static_cast<Sender*>(info->getOwner());
+        if (!sender)
+            continue;
+
+        if (sender->start()) {
+            ++active;
+            AppLog::write("transfer", QString("Upload dequeued: %1").arg(info->getFilePath()));
+        }
+    }
 }
 
 void MainWindow::selectReceiversAndSendTheFiles(QVector<QPair<QString, QString> > dirNameAndFullPath)
@@ -203,8 +293,8 @@ void MainWindow::onShowMainWindowTriggered()
 
 void MainWindow::onSendFilesActionTriggered()
 {
-    QStringList fileNames = QFileDialog::getOpenFileNames(this, tr("Select files"));
-    if (fileNames.size() <= 0)
+    const QStringList fileNames = Util::selectOpenFileNames(this, tr("Select files"));
+    if (fileNames.isEmpty())
         return;
 
     QVector<QPair<QString, QString> > pairs;
@@ -216,31 +306,14 @@ void MainWindow::onSendFilesActionTriggered()
 
 void MainWindow::onSendFolderActionTriggered()
 {
-    QStringList dirs;
-    QFileDialog fDialog(this);
-    fDialog.setOption(QFileDialog::DontUseNativeDialog, true);
-    fDialog.setFileMode(QFileDialog::Directory);
-    fDialog.setOption(QFileDialog::ShowDirsOnly);
-
-    /*
-     * Enable multiple foder selection
-     */
-    QListView* lView = fDialog.findChild<QListView*>("listView");
-    if (lView)
-        lView->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    QTreeView* tView = fDialog.findChild<QTreeView*>("treeView");
-    if (tView)
-        tView->setSelectionMode(QAbstractItemView::ExtendedSelection);
-
-    if (!fDialog.exec()) {
+    const QStringList dirs = Util::selectExistingDirectories(this, tr("Select folders"));
+    if (dirs.isEmpty())
         return;
-    }
 
     /*
      * Iterate through all selected folders
      */
     QVector< QPair<QString, QString> > pairs;
-    dirs = fDialog.selectedFiles();
     for (const auto& dirName : dirs) {
 
         QDir dir(dirName);
@@ -264,14 +337,19 @@ void MainWindow::onAboutActionTriggered()
     dialog.exec();
 }
 
+void MainWindow::onViewLogActionTriggered()
+{
+    LogViewerDialog dialog(this);
+    dialog.exec();
+}
+
 void MainWindow::onNewReceiverAdded(Receiver *rec)
 {
-    QProgressBar* progress = new QProgressBar();
-    connect(rec->getTransferInfo(), &TransferInfo::progressChanged, progress, &QProgressBar::setValue);
+    QWidget* progressWidget = createTransferProgressWidget(rec->getTransferInfo());
     mReceiverModel->insertTransfer(rec);
     QModelIndex progressIdx = mReceiverModel->index(0, (int)TransferTableModel::Column::Progress);
 
-    ui->receiverTableView->setIndexWidget(progressIdx, progress);
+    ui->receiverTableView->setIndexWidget(progressIdx, progressWidget);
     ui->receiverTableView->scrollToTop();
 }
 
@@ -558,7 +636,7 @@ void MainWindow::onSelectedSenderStateChanged(TransferState state)
     ui->resumeSenderBtn->setEnabled(state == TransferState::Paused);
     ui->pauseSenderBtn->setEnabled(state == TransferState::Transfering || state == TransferState::Waiting);
     ui->cancelSenderBtn->setEnabled(state == TransferState::Transfering || state == TransferState::Waiting ||
-                                    state == TransferState::Paused);
+                                    state == TransferState::Paused || state == TransferState::Queued);
 }
 
 void MainWindow::onSelectedReceiverStateChanged(TransferState state)
@@ -597,6 +675,8 @@ void MainWindow::setupToolbar()
     ui->mainToolBar->addWidget(spacer);
 
     QMenu* menu = new QMenu();
+    menu->addAction(mViewLogAction);
+    menu->addSeparator();
     menu->addAction(mAboutAction);
     menu->addAction(mAboutQtAction);
 
@@ -619,6 +699,8 @@ void MainWindow::setupActions()
     connect(mSendFolderAction, &QAction::triggered, this, &MainWindow::onSendFolderActionTriggered);
     mSettingsAction = new QAction(QIcon(":/img/settings.png"), tr("Settings"), this);
     connect(mSettingsAction, &QAction::triggered, this, &MainWindow::onSettingsActionTriggered);
+    mViewLogAction = new QAction(tr("View Log..."), this);
+    connect(mViewLogAction, &QAction::triggered, this, &MainWindow::onViewLogActionTriggered);
     mAboutAction = new QAction(QIcon(":/img/about.png"), tr("About"), this);
     mAboutAction->setMenuRole(QAction::AboutRole);
     connect(mAboutAction, &QAction::triggered, this, &MainWindow::onAboutActionTriggered);
@@ -674,6 +756,7 @@ void MainWindow::setupSystrayIcon()
     mSystrayMenu->addAction(mSendFilesAction);
     mSystrayMenu->addAction(mSendFolderAction);
     mSystrayMenu->addSeparator();
+    mSystrayMenu->addAction(mViewLogAction);
     mSystrayMenu->addAction(mAboutAction);
     mSystrayMenu->addAction(mAboutQtAction);
     mSystrayMenu->addSeparator();

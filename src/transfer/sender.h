@@ -21,6 +21,12 @@
 
 #include "transfer.h"
 #include "model/device.h"
+#include <QVector>
+
+class QCryptographicHash;
+class QSslSocket;
+class QSslError;
+class QTimer;
 
 class Sender : public Transfer
 {
@@ -38,16 +44,32 @@ public:
 private Q_SLOTS:
     void onBytesWritten(qint64 bytes);
     void onConnected();
+    void onEncrypted();
     void onDisconnected();
+    void onSocketError(QAbstractSocket::SocketError error);
+    void onSslErrors(const QList<QSslError>& errors);
+    void onOffsetAckTimeout();
 
 private:
     void finish();
     void sendData();
+    void sendStripedData();
     void sendHeader();
+    bool setupDataSockets();
+    void closeDataSockets();
+    bool writeStripedChunk(QTcpSocket* socket, qint64 offset, const QByteArray& chunk);
 
     void processCancelPacket(QByteArray& data) override;
     void processPausePacket(QByteArray& data) override;
     void processResumePacket(QByteArray& data) override;
+    void processOffsetAckPacket(QByteArray& data) override;
+
+    void hashFilePrefix(qint64 length);
+    void beginOffsetAckWait();
+    void applyOffsetAck(qint64 offset, int acceptedStreams, bool peerSupportsParallel);
+    void scheduleRetry(int delayMs, int nextAttempt);
+    void retryConnect(int attempt);
+    void connectTransferSocket();
 
     Device mReceiverDev;
     QString mFilePath;
@@ -62,6 +84,17 @@ private:
     bool mPaused;
     bool mPausedByReceiver;
     bool mIsHeaderSent;
+    bool mWaitingForOffsetAck;
+    bool mStartedTlsHandshake;
+    int mRequestedStreams;
+    int mActiveStreams;
+    qint64 mNextStripedOffset;
+    QString mTransferId;
+    QVector<QTcpSocket*> mDataSockets;
+    bool mVerifyChecksum;
+    QCryptographicHash* mHash;
+    QTimer* mOffsetAckTimer;
+    bool mRetryScheduled;
 };
 
 #endif // SENDER_H

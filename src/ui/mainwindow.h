@@ -51,6 +51,7 @@ private Q_SLOTS:
     void onSendFolderActionTriggered();
     void onSettingsActionTriggered();
     void onAboutActionTriggered();
+    void onViewLogActionTriggered();
 
     void onNewReceiverAdded(Receiver* rec);
 
@@ -95,6 +96,9 @@ private:
     void connectSignals();
     void sendFile(const QString& folderName, const QString& fileName, const Device& receiver);
     void selectReceiversAndSendTheFiles(QVector<QPair<QString, QString> > dirNameAndFullPath);
+    void processSendQueue();
+    int activeSenderCount() const;
+    void connectSenderQueueSignals(TransferInfo* info);
 
     bool anyActiveSender();
     bool anyActiveReceiver();
@@ -115,6 +119,7 @@ private:
     QAction* mSendFilesAction;
     QAction* mSendFolderAction;
     QAction* mSettingsAction;
+    QAction* mViewLogAction;
     QAction* mAboutAction;
     QAction* mAboutQtAction;
     QAction* mQuitAction;

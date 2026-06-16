@@ -6,14 +6,6 @@
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef TRANSFERSERVER_H
@@ -21,6 +13,9 @@
 
 #include <QTcpServer>
 #include <QObject>
+#include <QSslCertificate>
+#include <QSslKey>
+#include <QQueue>
 
 #include "receiver.h"
 #include "model/devicelistmodel.h"
@@ -33,17 +28,28 @@ public:
     explicit TransferServer(DeviceListModel* devList, QObject *parent = nullptr);
 
     bool listen(const QHostAddress& addr = QHostAddress::Any);
+    int activeDownloadCount() const;
 
 Q_SIGNALS:
     void newReceiverAdded(Receiver* receiver);
 
 private Q_SLOTS:
     void onNewConnection();
+    void onReceiverFinished();
 
 private:
+    void startReceiver(QTcpSocket* socket);
+    void rejectBusy(QTcpSocket* socket);
+    void tryStartPending();
+    bool isActiveReceiver(const Receiver* receiver) const;
+
     DeviceListModel* mDevList;
     QTcpServer* mServer;
     QVector<Receiver*> mReceivers;
+    QQueue<QTcpSocket*> mPendingSockets;
+    QSslCertificate mServerCert;
+    QSslKey mServerKey;
+    bool mTlsCredentialsReady{false};
 };
 
 #endif // TRANSFERSERVER_H

@@ -18,11 +18,14 @@
 
 
 #include "transferinfo.h"
+#include "util.h"
+#include "log.h"
 
 TransferInfo::TransferInfo(Transfer* owner, QObject *parent) :
     QObject(parent),
     mState(TransferState::Idle), mLastState(TransferState::Idle),
-    mType(TransferType::None), mProgress(0), mDataSize(0),
+    mType(TransferType::None), mProgress(0), mDataSize(0), mBytesTransferred(0),
+    mSpeedBps(0.0),
     mOwner(owner)
 {
 }
@@ -40,7 +43,8 @@ bool TransferInfo::canPause() const
 
 bool TransferInfo::canCancel() const
 {
-    return mState == TransferState::Waiting ||
+    return mState == TransferState::Queued ||
+            mState == TransferState::Waiting ||
             mState == TransferState::Transfering ||
             mState == TransferState::Paused;
 }
@@ -57,7 +61,16 @@ void TransferInfo::setState(TransferState newState)
 
         switch (mState) {
         case TransferState::Idle : {
-            if (newState == TransferState::Waiting) {
+            if (newState == TransferState::Waiting ||
+                    newState == TransferState::Queued) {
+                mState = newState;
+                emit stateChanged(mState);
+            }
+            break;
+        }
+        case TransferState::Queued : {
+            if (newState == TransferState::Waiting ||
+                    newState == TransferState::Cancelled) {
                 mState = newState;
                 emit stateChanged(mState);
             }
@@ -66,7 +79,10 @@ void TransferInfo::setState(TransferState newState)
         case TransferState::Waiting : {
             if (newState == TransferState::Transfering ||
                     newState == TransferState::Cancelled ||
-                    newState == TransferState::Paused) {
+                    newState == TransferState::Paused ||
+                    newState == TransferState::Failed) {
+                if (newState == TransferState::Transfering)
+                    resetSpeedTracking();
                 mState = newState;
                 emit stateChanged(mState);
             }
@@ -76,7 +92,8 @@ void TransferInfo::setState(TransferState newState)
             if (newState == TransferState::Disconnected ||
                     newState == TransferState::Finish ||
                     newState == TransferState::Cancelled ||
-                    newState == TransferState::Paused) {
+                    newState == TransferState::Paused ||
+                    newState == TransferState::Failed) {
                 mState = newState;
                 emit stateChanged(mState);
             }
@@ -85,6 +102,8 @@ void TransferInfo::setState(TransferState newState)
         case TransferState::Paused : {
             if (newState == TransferState::Waiting ||
                     newState == TransferState::Transfering) {
+                if (newState == TransferState::Transfering)
+                    resetSpeedTracking();
                 mState = mLastState;
                 emit stateChanged(mState);
             }
@@ -111,6 +130,44 @@ void TransferInfo::setProgress(int newProgress)
     }
 }
 
+void TransferInfo::setBytesTransferred(qint64 bytes)
+{
+    if (bytes < 0)
+        return;
+
+    mBytesTransferred = bytes;
+    if (!mSpeedTimer.isValid())
+        mSpeedTimer.start();
+
+    const qint64 elapsedMs = mSpeedTimer.elapsed();
+    if (elapsedMs > 0)
+        mSpeedBps = bytes * 1000.0 / elapsedMs;
+
+    emit statsChanged();
+}
+
+QString TransferInfo::getSpeedText() const
+{
+    return Util::formatSpeed(mSpeedBps);
+}
+
+QString TransferInfo::getEtaText() const
+{
+    if (mSpeedBps < 1.0 || mDataSize <= 0 || mBytesTransferred >= mDataSize)
+        return Util::formatEta(-1);
+
+    const qint64 remainingBytes = mDataSize - mBytesTransferred;
+    const qint64 etaSeconds = (qint64)(remainingBytes / mSpeedBps);
+    return Util::formatEta(etaSeconds);
+}
+
+void TransferInfo::resetSpeedTracking()
+{
+    mBytesTransferred = 0;
+    mSpeedBps = 0.0;
+    mSpeedTimer.invalidate();
+}
+
 void TransferInfo::setTransferType(TransferType type)
 {
     mType = type;
@@ -124,4 +181,42 @@ void TransferInfo::setDataSize(qint64 size)
 void TransferInfo::setFilePath(const QString &fileName)
 {
     mFilePath = fileName;
+}
+
+void TransferInfo::setAttempt(int attempt)
+{
+    mAttempt = qMax(0, attempt);
+}
+
+void TransferInfo::setTransferId(const QString& transferId)
+{
+    mTransferId = transferId;
+}
+
+void TransferInfo::fail(TransferFailureReason reason, const QString& message)
+{
+    if (mState == TransferState::Finish || mState == TransferState::Cancelled)
+        return;
+
+    mFailureReason = reason;
+    if (mState != TransferState::Failed) {
+        mState = TransferState::Failed;
+        emit stateChanged(mState);
+    }
+    AppLog::transferEvent(mTransferId,
+                          QStringLiteral("failed"),
+                          mPeer.getAddress().toString(),
+                          transferFailureReasonCode(reason),
+                          QString::number(mAttempt),
+                          message);
+    emit errorOcurred(message);
+}
+
+void TransferInfo::resetForRetry()
+{
+    mFailureReason = TransferFailureReason::None;
+    mState = TransferState::Idle;
+    mLastState = TransferState::Idle;
+    mProgress = 0;
+    resetSpeedTracking();
 }

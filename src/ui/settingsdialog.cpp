@@ -16,18 +16,53 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <QFileDialog>
-
 #include "settingsdialog.h"
 #include "ui_settingsdialog.h"
 
 #include "settings.h"
+#include "util.h"
+#include "ui/logviewerdialog.h"
+#include "ui/tlstrustdialog.h"
+#include "log.h"
+#include "transfer/tlshelper.h"
+#include <QMessageBox>
+#include <QScrollArea>
+#include <QFrame>
+
+namespace {
+
+void makeTabsScrollable(QTabWidget* tabWidget)
+{
+    if (!tabWidget)
+        return;
+
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        QWidget* page = tabWidget->widget(i);
+        if (!page)
+            continue;
+
+        const QString title = tabWidget->tabText(i);
+        tabWidget->removeTab(i);
+
+        auto* scroll = new QScrollArea(tabWidget);
+        scroll->setWidgetResizable(true);
+        scroll->setFrameShape(QFrame::NoFrame);
+        scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scroll->setWidget(page);
+        tabWidget->insertTab(i, scroll, title);
+    }
+}
+
+} // namespace
 
 SettingsDialog::SettingsDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::SettingsDialog)
 {
     ui->setupUi(this);
+    makeTabsScrollable(ui->tabWidget);
+    resize(500, 720);
+    setMinimumSize(480, 560);
     assign();
 }
 
@@ -56,6 +91,21 @@ void SettingsDialog::onSaveClicked()
     set->setDownloadDir(ui->downDirlineEdit->text());
     set->setBroadcastInterval(ui->bcIntervalSpinBox->value());
     set->setReplaceExistingFile(ui->overwriteCheckBox->isChecked());
+    set->setVerifyChecksum(ui->verifyChecksumCheckBox->isChecked());
+    set->setResumePartialDownloads(ui->resumePartialCheckBox->isChecked());
+    set->setMaxConcurrentTransfers(ui->maxTransfersSpinBox->value());
+    set->setParallelStreams(ui->parallelStreamsSpinBox->value());
+    set->setAuthEnabled(ui->authCheckBox->isChecked());
+    set->setAuthToken(ui->authTokenLineEdit->text());
+    set->setTlsEnabled(ui->tlsCheckBox->isChecked());
+    set->setMaxConcurrentDownloads(ui->maxDownloadsSpinBox->value());
+    set->setTransferRetryMax(ui->transferRetryMaxSpinBox->value());
+    set->setTransferRetryBaseMs(ui->transferRetryBaseSpinBox->value());
+    set->setJournalEnabled(ui->journalEnabledCheckBox->isChecked());
+    set->setJournalRetentionDays(ui->journalRetentionSpinBox->value());
+    set->setTransferIdleTimeoutMs(ui->transferIdleTimeoutSpinBox->value() * 1000);
+    set->setMaxPacketSize(ui->maxPacketSizeSpinBox->value() * 1024);
+    set->setTransferOffsetAckTimeoutMs(ui->offsetAckTimeoutSpinBox->value() * 1000);
 
     set->saveSettings();
 
@@ -70,11 +120,25 @@ void SettingsDialog::onResetClicked()
 
 void SettingsDialog::onSelectDownDirClicked()
 {
-    QString dirName = Settings::instance()->getDownloadDir();
-    QString newDirName = QFileDialog::getExistingDirectory(this, tr("Select a directory"), dirName);
+    const QString dirName = Settings::instance()->getDownloadDir();
+    const QString newDirName = Util::selectExistingDirectory(
+        this, tr("Select a directory"), dirName);
 
     if (!newDirName.isEmpty())
         ui->downDirlineEdit->setText(newDirName);
+}
+
+void SettingsDialog::onViewLogClicked()
+{
+    LogViewerDialog dialog(this);
+    dialog.exec();
+}
+
+void SettingsDialog::onManageTlsTrustClicked()
+{
+    TlsTrustDialog dialog(this);
+    dialog.exec();
+    ui->tlsPinnedCountLabel->setText(tr("Pinned peers: %1").arg(TlsHelper::pinnedPeerCount()));
 }
 
 void SettingsDialog::assign()
@@ -93,4 +157,21 @@ void SettingsDialog::assign()
     ui->buffSizeSpinBox->setValue(sets->getFileBufferSize() / 1024);
     ui->bcIntervalSpinBox->setValue(sets->getBroadcastInterval());
     ui->overwriteCheckBox->setChecked(sets->getReplaceExistingFile());
+    ui->verifyChecksumCheckBox->setChecked(sets->getVerifyChecksum());
+    ui->resumePartialCheckBox->setChecked(sets->getResumePartialDownloads());
+    ui->maxTransfersSpinBox->setValue(sets->getMaxConcurrentTransfers());
+    ui->parallelStreamsSpinBox->setValue(sets->getParallelStreams());
+    ui->authCheckBox->setChecked(sets->getAuthEnabled());
+    ui->authTokenLineEdit->setText(sets->getAuthToken());
+    ui->tlsCheckBox->setChecked(sets->getTlsEnabled());
+    ui->maxDownloadsSpinBox->setValue(sets->getMaxConcurrentDownloads());
+    ui->transferRetryMaxSpinBox->setValue(sets->getTransferRetryMax());
+    ui->transferRetryBaseSpinBox->setValue(sets->getTransferRetryBaseMs());
+    ui->journalEnabledCheckBox->setChecked(sets->getJournalEnabled());
+    ui->journalRetentionSpinBox->setValue(sets->getJournalRetentionDays());
+    ui->transferIdleTimeoutSpinBox->setValue(sets->getTransferIdleTimeoutMs() / 1000);
+    ui->maxPacketSizeSpinBox->setValue(sets->getMaxPacketSize() / 1024);
+    ui->offsetAckTimeoutSpinBox->setValue(sets->getTransferOffsetAckTimeoutMs() / 1000);
+    ui->logPathLabel->setText(AppLog::logFilePath());
+    ui->tlsPinnedCountLabel->setText(tr("Pinned peers: %1").arg(TlsHelper::pinnedPeerCount()));
 }

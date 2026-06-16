@@ -38,6 +38,8 @@ private Q_SLOTS:
     void onSaveClicked();
     void onResetClicked();
     void onSelectDownDirClicked();
+    void onViewLogClicked();
+    void onManageTlsTrustClicked();
 
 private:
     void assign();
