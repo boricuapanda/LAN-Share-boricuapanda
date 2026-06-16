@@ -8,8 +8,15 @@
 #include <QListWidget>
 #include <QPlainTextEdit>
 #include <QTableView>
+#include <QTcpServer>
+#include <QTemporaryDir>
+#include <QFile>
+#include <QEventLoop>
+#include <QTimer>
 
 #include "settings.h"
+#include "model/device.h"
+#include "model/transferinfo.h"
 #include "ui/mainwindow.h"
 #include "ui/settingsdialog.h"
 #include "ui/logviewerdialog.h"
@@ -19,9 +26,13 @@ class UiTest : public QObject
 {
     Q_OBJECT
 
+    static int countSenderState(const MainWindow& window, TransferState state);
+
 private Q_SLOTS:
     void initTestCase();
+    void init();
     void mainWindowSmoke();
+    void uploadQueueMaxConcurrentTransfers();
     void settingsDialogWidgets();
     void settingsParallelStreamsRoundTrip();
     void settingsTlsAndAuthWidgets();
@@ -33,6 +44,84 @@ private Q_SLOTS:
 void UiTest::initTestCase()
 {
     QCoreApplication::setApplicationName("LANShareUiTest");
+}
+
+void UiTest::init()
+{
+    Settings::instance()->reset();
+    Settings::instance()->setTlsEnabled(false);
+}
+
+int UiTest::countSenderState(const MainWindow& window, TransferState state)
+{
+    int count = 0;
+    for (int i = 0; i < window.mSenderModel->rowCount(); ++i) {
+        if (window.mSenderModel->getTransferInfo(i)->getState() == state)
+            ++count;
+    }
+    return count;
+}
+
+void UiTest::uploadQueueMaxConcurrentTransfers()
+{
+    Settings* settings = Settings::instance();
+    settings->setAuthEnabled(false);
+    settings->setVerifyChecksum(false);
+    settings->setJournalEnabled(false);
+    settings->setMaxConcurrentTransfers(2);
+    settings->setParallelStreams(1);
+
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    settings->setDownloadDir(tempDir.path());
+    settings->setReplaceExistingFile(true);
+
+    QTcpServer probe;
+    QVERIFY(probe.listen(QHostAddress::LocalHost, 0));
+    const quint16 port = probe.serverPort();
+    probe.close();
+    settings->setTransferPort(port);
+
+    Device peer;
+    peer.setAddress(QHostAddress::LocalHost);
+    peer.setName(QStringLiteral("loopback"));
+
+    QStringList paths;
+    for (int i = 0; i < 3; ++i) {
+        const QString path = tempDir.path() + QStringLiteral("/file%1.bin").arg(i);
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QByteArray(32 * 1024, static_cast<char>('A' + i)));
+        file.close();
+        paths.append(path);
+    }
+
+    MainWindow window;
+    window.sendFile(QString(), paths.at(0), peer);
+    window.sendFile(QString(), paths.at(1), peer);
+    window.sendFile(QString(), paths.at(2), peer);
+
+    QCOMPARE(window.mSenderModel->rowCount(), 3);
+    QCOMPARE(window.activeSenderCount(), 2);
+    QCOMPARE(countSenderState(window, TransferState::Queued), 1);
+
+    QEventLoop loop;
+    QTimer poll;
+    poll.setInterval(50);
+    QObject::connect(&poll, &QTimer::timeout, &window, [&]() {
+        if (countSenderState(window, TransferState::Finish) == 3)
+            loop.quit();
+    });
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    timeout.setInterval(30000);
+    QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    poll.start();
+    timeout.start();
+    loop.exec();
+    poll.stop();
+
+    QCOMPARE(countSenderState(window, TransferState::Finish), 3);
 }
 
 void UiTest::mainWindowSmoke()

@@ -791,8 +791,10 @@ Operational reference for this fork. Structured events are written to `~/.local/
 - `gap_transferServerAdmissionRetrySuccess` — real `TransferServer` download cap + sender retry success
 - `gap_tlsLoopbackTransfer` — TLS end-to-end via `TransferServer` (skipped if openssl missing)
 - `gap_concurrentMultiSender` — 3 simultaneous 2-stream uploads through `TransferServer`
+- `uploadQueueMaxConcurrentTransfers` (`ui_test`) — `MainWindow` upload queue caps at `MaxConcurrentTransfers` and drains on completion
 
 **Batch 10 gate:** 34 passed, 0 failed (full `transfer_test` suite)
+**UI gate:** 8 passed, 0 failed (full `ui_test` suite)
 
 ### Settings UI & observability
 - Settings dialog wired for: max concurrent downloads, upload retry attempts/backoff, journal enable/retention, transfer idle timeout, max packet size, OffsetAck timeout

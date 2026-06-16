@@ -31,6 +31,10 @@ namespace Ui {
 class MainWindow;
 }
 
+#ifdef QT_TESTLIB_LIB
+class UiTest;
+#endif
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -99,6 +103,10 @@ private:
     void processSendQueue();
     int activeSenderCount() const;
     void connectSenderQueueSignals(TransferInfo* info);
+
+#ifdef QT_TESTLIB_LIB
+    friend class UiTest;
+#endif
 
     bool anyActiveSender();
     bool anyActiveReceiver();
