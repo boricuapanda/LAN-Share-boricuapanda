@@ -13,8 +13,8 @@ QMainWindow {
 
 QWidget#transferSection {
     background-color: #ffffff;
-    border: 1px solid #b8c4d2;
-    border-radius: 6px;
+    border: 1px solid #c5d9e6;
+    border-radius: 8px;
 }
 
 QToolBar {
@@ -101,7 +101,8 @@ QStackedWidget#mainContentStack {
 }
 
 QWidget#transfersPage,
-QWidget#settingsPanel {
+QWidget#settingsPanel,
+QWidget#aboutPanel {
     background-color: #f6f8fc;
 }
 
@@ -255,6 +256,73 @@ QLabel#settingsDialogTitle {
     font-weight: bold;
     color: #202833;
     padding: 0;
+}
+
+QFrame#aboutHeroCard {
+    background-color: #ffffff;
+    border: 1px solid #c5d9e6;
+    border-radius: 10px;
+}
+
+QLabel#aboutAppIcon {
+    background-color: #eef7fb;
+    border: 1px solid #d7ebf4;
+    border-radius: 12px;
+    padding: 10px;
+}
+
+QLabel#aboutAppName {
+    color: #004d85;
+    font-size: 24px;
+    font-weight: 800;
+}
+
+QLabel#aboutVersionBadge {
+    background-color: #d8f5fb;
+    color: #005a7d;
+    border: 1px solid #9bd9e8;
+    border-radius: 10px;
+    padding: 3px 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#aboutDescription {
+    color: #263241;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+QLabel#aboutBodyText {
+    color: #4f6678;
+    font-size: 12px;
+}
+
+QLabel#aboutMutedText {
+    color: #7a8796;
+    font-size: 11px;
+}
+
+QTextEdit#aboutTextView {
+    background-color: #f8fcfe;
+    color: #263241;
+    border: 1px solid #d7ebf4;
+    border-radius: 8px;
+    padding: 10px;
+    font-family: "Noto Sans", "Segoe UI", sans-serif;
+    font-size: 12px;
+}
+
+QPushButton#aboutToggleButton {
+    min-height: 30px;
+    min-width: 96px;
+    padding: 0 16px;
+}
+
+QPushButton#aboutToggleButton:checked {
+    background-color: #d8f5fb;
+    color: #005a7d;
+    border-color: #9bd9e8;
 }
 
 QGroupBox#settingsCard,
@@ -444,14 +512,14 @@ QWidget#transferSection QPushButton:flat:disabled {
 }
 
 QSplitter::handle {
-    background-color: #c5dff0;
-    height: 4px;
-    margin: 2px 8px;
-    border-radius: 2px;
+    background-color: transparent;
+    height: 10px;
+    margin: 0 14px;
 }
 
 QSplitter::handle:hover {
-    background-color: #14a3b8;
+    background-color: #d6edf6;
+    border-radius: 4px;
 }
 
 /* ---- Dialogs ---- */
@@ -693,13 +761,42 @@ QWidget#contentHeader QPushButton[primary="true"],
 QWidget#contentHeader QToolButton#headerSendBtn[primary="true"] {
     background-color: #ffffff;
     color: #005a7d;
-    border-color: #ffffff;
+    border: 1px solid #ffffff;
+    border-radius: 6px;
+    min-height: 30px;
+    padding: 0 8px 0 10px;
+    font-weight: 700;
 }
 
 QWidget#contentHeader QPushButton[primary="true"]:hover,
 QWidget#contentHeader QToolButton#headerSendBtn[primary="true"]:hover {
     background-color: #d8f5fb;
     border-color: #d8f5fb;
+}
+
+QWidget#contentHeader QToolButton#headerSendBtn[primary="true"]:pressed,
+QWidget#contentHeader QToolButton#headerSendBtn[primary="true"]:open {
+    background-color: #c7eef7;
+    border-color: #c7eef7;
+}
+
+QWidget#contentHeader QToolButton#headerSendBtn::menu-button {
+    width: 22px;
+    border-left: 1px solid #b9d8e5;
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+    background-color: #f0fbfd;
+}
+
+QWidget#contentHeader QToolButton#headerSendBtn::menu-button:hover,
+QWidget#contentHeader QToolButton#headerSendBtn::menu-button:open {
+    background-color: #d8f5fb;
+}
+
+QWidget#contentHeader QToolButton#headerSendBtn::menu-arrow {
+    image: url(:/img/chevron-down.xpm);
+    width: 10px;
+    height: 7px;
 }
 
 SettingsDialog QPushButton#pushButton,
@@ -841,6 +938,36 @@ QMenu::item {
 QMenu::item:selected {
     background-color: #14a3b8;
     color: #ffffff;
+}
+
+QMenu#sendMenu {
+    background-color: #fbfdff;
+    border: 1px solid #b8dce8;
+    border-radius: 8px;
+    padding: 7px;
+    margin: 2px;
+}
+
+QMenu#sendMenu::item {
+    color: #174b68;
+    background-color: transparent;
+    border-radius: 6px;
+    padding: 9px 18px 9px 34px;
+    min-width: 142px;
+    min-height: 22px;
+}
+
+QMenu#sendMenu::item:selected {
+    background-color: #e5f7fb;
+    color: #005a7d;
+}
+
+QMenu#sendMenu::item:pressed {
+    background-color: #c7eef7;
+}
+
+QMenu#sendMenu::icon {
+    padding-left: 9px;
 }
 
 QToolTip {

@@ -20,6 +20,7 @@ SOURCES += main.cpp\
     ui/mainwindow.cpp \
     ui/receiverselectordialog.cpp \
     ui/aboutdialog.cpp \
+    ui/aboutpage.cpp \
     ui/settingsdialog.cpp \
     ui/logviewerdialog.cpp \
     ui/tlstrustdialog.cpp \
@@ -47,6 +48,7 @@ HEADERS += settings.h \
     ui/mainwindow.h \
     ui/receiverselectordialog.h \
     ui/aboutdialog.h \
+    ui/aboutpage.h \
     ui/settingsdialog.h \
     ui/logviewerdialog.h \
     ui/tlstrustdialog.h \

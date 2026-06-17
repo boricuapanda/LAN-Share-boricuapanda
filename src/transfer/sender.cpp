@@ -84,6 +84,11 @@ Sender::Sender(const Device& receiver, const QString& folderName, const QString&
 
 namespace {
 
+constexpr qint64 LargeTransferThresholdBytes = 8LL * 1024 * 1024 * 1024;
+constexpr int NormalSendPumpDelayMs = 4;
+constexpr int LargeSendPumpDelayMs = 16;
+constexpr int CongestedSendPumpDelayMs = 25;
+
 void journalCheckpointUpload(const Sender* sender, TransferState state)
 {
     if (!Settings::instance()->getJournalEnabled())
@@ -222,7 +227,7 @@ void Sender::resume()
     if (mInfo->canResume()) {
         mInfo->setState(mInfo->getLastState());
         mPaused = false;
-        sendData();
+        scheduleSendData();
     }
 }
 
@@ -467,8 +472,19 @@ void Sender::scheduleSendData(int delayMs)
     if (mSendScheduled || mCancelled || mPaused || mPausedByReceiver || mWaitingForOffsetAck)
         return;
 
+    if (delayMs < 0)
+        delayMs = sendPumpDelayMs();
+
     mSendScheduled = true;
     QTimer::singleShot(delayMs, this, &Sender::sendData);
+}
+
+int Sender::sendPumpDelayMs() const
+{
+    if (mSocket && mSocket->bytesToWrite() > mFileBuffSize * 2)
+        return CongestedSendPumpDelayMs;
+
+    return mFileSize >= LargeTransferThresholdBytes ? LargeSendPumpDelayMs : NormalSendPumpDelayMs;
 }
 
 bool Sender::setupDataSockets()
@@ -644,7 +660,7 @@ void Sender::sendStripedData()
     }
 
     mSendScheduled = true;
-    QTimer::singleShot(1, this, &Sender::sendStripedData);
+    QTimer::singleShot(sendPumpDelayMs(), this, &Sender::sendStripedData);
 }
 
 void Sender::sendHeader()

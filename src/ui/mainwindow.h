@@ -32,6 +32,7 @@
 
 class TransferListPanel;
 class SettingsDialog;
+class AboutPage;
 
 class QDragEnterEvent;
 class QDragMoveEvent;
@@ -123,7 +124,9 @@ private:
     void setupContentStack();
     void showTransfersView();
     void showSettingsView();
-    void updateSidebarNavSelection(bool transfersActive);
+    void showAboutView();
+    enum class ContentView { Transfers, Settings, About };
+    void updateSidebarNavSelection(ContentView activeView);
     QToolButton* createSidebarNavButton(const QString& text, const QIcon& icon, bool checkable);
     void setupContentHeader();
     void setupSidebarBranding();
@@ -157,12 +160,14 @@ private:
     TransferListPanel* mSenderPanel{nullptr};
     TransferListPanel* mReceiverPanel{nullptr};
     SettingsDialog* mSettingsPanel{nullptr};
+    AboutPage* mAboutPage{nullptr};
     QStackedWidget* mContentStack{nullptr};
     QWidget* mTransfersPage{nullptr};
     QWidget* mContentHeader{nullptr};
     QLabel* mContentTitle{nullptr};
     QToolButton* mNavTransfersBtn{nullptr};
     QToolButton* mNavSettingsBtn{nullptr};
+    QToolButton* mNavAboutBtn{nullptr};
     QLabel* mStatusLabel{nullptr};
     QLabel* mActiveBadge{nullptr};
     QWidget* mHeaderSendButton{nullptr};

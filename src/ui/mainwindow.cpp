@@ -47,7 +47,7 @@
 #include "receiverselectordialog.h"
 #include "settingsdialog.h"
 #include "settings.h"
-#include "aboutdialog.h"
+#include "aboutpage.h"
 #include "logviewerdialog.h"
 #include "util.h"
 #include "transferlistpanel.h"
@@ -429,8 +429,8 @@ void MainWindow::onTransfersActionTriggered()
 
 void MainWindow::onAboutActionTriggered()
 {
-    AboutDialog dialog;
-    dialog.exec();
+    setMainWindowVisibility(true);
+    showAboutView();
 }
 
 void MainWindow::onViewLogActionTriggered()
@@ -742,18 +742,18 @@ void MainWindow::setupToolbar()
     connect(mNavSettingsBtn, &QToolButton::clicked, this, &MainWindow::onSettingsActionTriggered);
     ui->mainToolBar->addWidget(mNavSettingsBtn);
 
-    QToolButton* aboutBtn = createSidebarNavButton(
+    mNavAboutBtn = createSidebarNavButton(
         tr("About"),
         UiTheme::appIcon(QStringLiteral(":/img/about.png")),
-        false);
-    connect(aboutBtn, &QToolButton::clicked, this, &MainWindow::onAboutActionTriggered);
-    ui->mainToolBar->addWidget(aboutBtn);
+        true);
+    connect(mNavAboutBtn, &QToolButton::clicked, this, &MainWindow::onAboutActionTriggered);
+    ui->mainToolBar->addWidget(mNavAboutBtn);
 
     QWidget* spacer = new QWidget();
     spacer->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     ui->mainToolBar->addWidget(spacer);
 
-    updateSidebarNavSelection(true);
+    updateSidebarNavSelection(ContentView::Transfers);
 }
 
 QToolButton* MainWindow::createSidebarNavButton(const QString& text, const QIcon& icon, bool checkable)
@@ -769,16 +769,18 @@ QToolButton* MainWindow::createSidebarNavButton(const QString& text, const QIcon
     return btn;
 }
 
-void MainWindow::updateSidebarNavSelection(bool transfersActive)
+void MainWindow::updateSidebarNavSelection(ContentView activeView)
 {
     if (mNavTransfersBtn)
-        mNavTransfersBtn->setChecked(transfersActive);
+        mNavTransfersBtn->setChecked(activeView == ContentView::Transfers);
     if (mNavSettingsBtn)
-        mNavSettingsBtn->setChecked(!transfersActive);
+        mNavSettingsBtn->setChecked(activeView == ContentView::Settings);
+    if (mNavAboutBtn)
+        mNavAboutBtn->setChecked(activeView == ContentView::About);
     if (mSettingsAction)
-        mSettingsAction->setVisible(transfersActive);
+        mSettingsAction->setVisible(activeView != ContentView::Settings);
     if (mTransfersAction)
-        mTransfersAction->setVisible(!transfersActive);
+        mTransfersAction->setVisible(activeView != ContentView::Transfers);
 }
 
 void MainWindow::setupActions()
@@ -975,6 +977,7 @@ void MainWindow::setupContentHeader()
     layout->addStretch();
 
     auto* sendMenu = new QMenu(header);
+    sendMenu->setObjectName(QStringLiteral("sendMenu"));
     sendMenu->addAction(mSendFilesAction);
     sendMenu->addAction(mSendFolderAction);
 
@@ -984,6 +987,7 @@ void MainWindow::setupContentHeader()
     sendBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     sendBtn->setText(tr("Send"));
     sendBtn->setIcon(UiTheme::appIcon(QStringLiteral(":/img/send.png")));
+    sendBtn->setIconSize(QSize(16, 16));
     sendBtn->setPopupMode(QToolButton::MenuButtonPopup);
     sendBtn->setMenu(sendMenu);
     connect(sendBtn, &QToolButton::clicked, mSendFilesAction, &QAction::trigger);
@@ -1000,7 +1004,7 @@ void MainWindow::setupTransferPanels()
         ui->splitter->widget(1)->setObjectName(QStringLiteral("transferSection"));
     }
 
-    ui->splitter->setHandleWidth(6);
+    ui->splitter->setHandleWidth(10);
     ui->splitter->setChildrenCollapsible(false);
 
     if (ui->centralWidget->layout())
@@ -1009,6 +1013,10 @@ void MainWindow::setupTransferPanels()
         ui->verticalLayout->setSpacing(4);
     if (ui->verticalLayout_2)
         ui->verticalLayout_2->setSpacing(4);
+    if (ui->verticalLayout)
+        ui->verticalLayout->setContentsMargins(8, 8, 8, 8);
+    if (ui->verticalLayout_2)
+        ui->verticalLayout_2->setContentsMargins(8, 8, 8, 8);
     if (ui->horizontalLayout) {
         ui->horizontalLayout->setContentsMargins(10, 6, 10, 4);
         ui->horizontalLayout->setSpacing(4);
@@ -1146,6 +1154,10 @@ void MainWindow::setupContentStack()
         showTransfersView();
     });
 
+    mAboutPage = new AboutPage(mContentStack);
+    mAboutPage->setObjectName(QStringLiteral("aboutPanel"));
+    mContentStack->addWidget(mAboutPage);
+
     if (mContentHeader)
         ui->verticalLayout_3->addWidget(mContentHeader);
     ui->verticalLayout_3->addWidget(mContentStack, 1);
@@ -1166,7 +1178,7 @@ void MainWindow::showTransfersView()
         mActiveBadge->show();
     if (mHeaderSendButton)
         mHeaderSendButton->show();
-    updateSidebarNavSelection(true);
+    updateSidebarNavSelection(ContentView::Transfers);
     setAcceptDrops(true);
 }
 
@@ -1183,7 +1195,26 @@ void MainWindow::showSettingsView()
         mActiveBadge->hide();
     if (mHeaderSendButton)
         mHeaderSendButton->hide();
-    updateSidebarNavSelection(false);
+    updateSidebarNavSelection(ContentView::Settings);
+    setAcceptDrops(false);
+}
+
+void MainWindow::showAboutView()
+{
+    if (!mContentStack || !mAboutPage)
+        return;
+
+    if (mSettingsPanel)
+        mSettingsPanel->reloadFromSettings();
+
+    mContentStack->setCurrentWidget(mAboutPage);
+    if (mContentTitle)
+        mContentTitle->setText(tr("About"));
+    if (mActiveBadge)
+        mActiveBadge->hide();
+    if (mHeaderSendButton)
+        mHeaderSendButton->hide();
+    updateSidebarNavSelection(ContentView::About);
     setAcceptDrops(false);
 }
 

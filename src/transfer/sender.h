@@ -54,7 +54,8 @@ private:
     void finish();
     void completeUpload();
     void sendData();
-    void scheduleSendData(int delayMs = 1);
+    void scheduleSendData(int delayMs = -1);
+    int sendPumpDelayMs() const;
     void sendStripedData();
     void sendHeader();
     bool setupDataSockets();
