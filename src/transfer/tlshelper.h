@@ -21,10 +21,10 @@ void clearPinnedPeers();
 QStringList pinnedPeerIds();
 QString pinnedFingerprint(const QString& peerId);
 void removePinnedPeer(const QString& peerId);
-    void upsertPinnedPeer(const QString& peerId, const QString& fingerprint);
+void upsertPinnedPeer(const QString& peerId, const QString& fingerprint);
 
-    void setTlsConfigDirForTests(const QString& dir);
-    void clearTlsConfigDirForTests();
+void setTlsConfigDirForTests(const QString& dir);
+void clearTlsConfigDirForTests();
 }
 
 #endif // TLSHELPER_H

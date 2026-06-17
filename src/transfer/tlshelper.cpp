@@ -51,25 +51,31 @@ bool generateSelfSignedCert(QString* errorMessage)
     return true;
 }
 
-} // namespace
+QString& testTlsConfigDir()
+{
+    // Leak this intentionally so TLS path lookups remain safe during shutdown.
+    static QString* dir = new QString;
+    return *dir;
+}
 
-static QString gTestTlsConfigDir;
+} // namespace
 
 QString TlsHelper::tlsConfigDir()
 {
-    if (!gTestTlsConfigDir.isEmpty())
-        return gTestTlsConfigDir;
+    const QString testDir = testTlsConfigDir();
+    if (!testDir.isEmpty())
+        return testDir;
     return configBaseDir() + QDir::separator() + "tls";
 }
 
 void TlsHelper::setTlsConfigDirForTests(const QString& dir)
 {
-    gTestTlsConfigDir = dir;
+    testTlsConfigDir() = dir;
 }
 
 void TlsHelper::clearTlsConfigDirForTests()
 {
-    gTestTlsConfigDir.clear();
+    testTlsConfigDir().clear();
 }
 
 QString TlsHelper::certificatePath()

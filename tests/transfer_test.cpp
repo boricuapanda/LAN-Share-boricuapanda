@@ -916,7 +916,6 @@ void TransferTest::receiverOpenFailureCancelsSender()
 
     const QString blockedDir = tempRoot.path() + "/blocked";
     QVERIFY(QDir().mkpath(blockedDir));
-    QFile::setPermissions(blockedDir, QFile::ReadOwner | QFile::ExeOwner);
 
     Settings* settings = Settings::instance();
     settings->setDownloadDir(blockedDir);
@@ -924,6 +923,8 @@ void TransferTest::receiverOpenFailureCancelsSender()
     settings->setResumePartialDownloads(false);
     settings->setReplaceExistingFile(true);
     settings->setTlsEnabled(false);
+
+    QFile::setPermissions(blockedDir, QFile::ReadOwner | QFile::ExeOwner);
 
     QTcpServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost, 0));
@@ -1283,7 +1284,7 @@ void TransferTest::batch10_uploadRetryAfterDisconnect()
     QVERIFY(QDir().mkpath(downloadDir));
 
     const QString sourcePath = tempRoot.path() + "/retry.bin";
-    const QByteArray payload(256 * 1024, 'r');
+    const QByteArray payload(4 * 1024 * 1024, 'r');
     QFile source(sourcePath);
     QVERIFY(source.open(QIODevice::WriteOnly));
     QCOMPARE(source.write(payload), payload.size());
@@ -1296,6 +1297,7 @@ void TransferTest::batch10_uploadRetryAfterDisconnect()
     settings->setReplaceExistingFile(true);
     settings->setTlsEnabled(false);
     settings->setParallelStreams(1);
+    settings->setFileBufferSize(16 * 1024);
     settings->setTransferRetryMax(2);
     settings->setTransferRetryBaseMs(100);
 
@@ -1319,7 +1321,7 @@ void TransferTest::batch10_uploadRetryAfterDisconnect()
     QObject::connect(sender.getTransferInfo(), &TransferInfo::statsChanged, &sender, [&]() {
         if (!forcedDisconnect && sender.getTransferInfo()->getAttempt() == 0
             && sender.getTransferInfo()->getState() == TransferState::Transfering
-            && sender.getTransferInfo()->getBytesTransferred() >= 32 * 1024) {
+            && sender.getTransferInfo()->getBytesTransferred() >= 16 * 1024) {
             forcedDisconnect = true;
             if (sender.getSocket())
                 sender.getSocket()->abort();
@@ -1450,17 +1452,26 @@ void TransferTest::batch10_journalCrashRecoveryStartup()
     Settings* settings = Settings::instance();
     settings->setJournalEnabled(true);
 
+    QTemporaryDir tempRoot;
+    QVERIFY(tempRoot.isValid());
+
     JournalEntry orphan;
     orphan.transferId = QStringLiteral("orphan-crash-id");
     orphan.type = TransferType::Download;
-    orphan.filePath = QStringLiteral("/tmp/orphan.bin");
-    orphan.partPath = QStringLiteral("/tmp/orphan.bin.part");
+    orphan.filePath = tempRoot.path() + "/orphan.bin";
+    orphan.partPath = orphan.filePath + ".part";
     orphan.peerAddress = QStringLiteral("127.0.0.1");
     orphan.state = TransferState::Transfering;
     orphan.dataSize = 8192;
     orphan.bytesTransferred = 4096;
     orphan.fingerprint = TransferJournal::makeFingerprint(orphan.transferId, orphan.dataSize, orphan.filePath);
     orphan.updatedAtMs = QDateTime::currentMSecsSinceEpoch();
+
+    QFile orphanPart(orphan.partPath);
+    QVERIFY(orphanPart.open(QIODevice::WriteOnly));
+    QCOMPARE(orphanPart.write(QByteArray(orphan.bytesTransferred, 'o')), orphan.bytesTransferred);
+    orphanPart.close();
+
     QVERIFY(TransferJournal::instance()->upsert(orphan));
 
     QString summary;
@@ -1468,8 +1479,6 @@ void TransferTest::batch10_journalCrashRecoveryStartup()
     QCOMPARE(retained, 1);
     QVERIFY(summary.contains(QStringLiteral("1")));
 
-    QTemporaryDir tempRoot;
-    QVERIFY(tempRoot.isValid());
     const QString downloadDir = tempRoot.path() + "/downloads";
     QVERIFY(QDir().mkpath(downloadDir));
 
@@ -1821,6 +1830,13 @@ void TransferTest::gap_tlsLoopbackTransfer()
     timeout.stop();
 
     TlsHelper::clearTlsConfigDirForTests();
+
+    QElapsedTimer senderSettle;
+    senderSettle.start();
+    while (senderSettle.elapsed() < 2000 &&
+           sender.getTransferInfo()->getState() != TransferState::Finish) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    }
 
     QVERIFY(receiver != nullptr);
     QCOMPARE(receiver->getTransferInfo()->getState(), TransferState::Finish);
