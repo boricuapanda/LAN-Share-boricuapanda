@@ -62,17 +62,37 @@
 
 namespace {
 
-constexpr int kFolderSendBatchFiles = 32;
-constexpr int kFolderSendBacklogMultiplier = 8;
-constexpr int kFolderSendMinBacklog = 16;
+constexpr int kFolderSendBatchFiles = 8;
+constexpr int kFolderSendMaxActiveTransfers = 2;
+constexpr int kFolderSendQueuedLookahead = 12;
 constexpr int kFolderSendBackoffMs = 350;
+
+int folderSendActiveLimit()
+{
+    const int configuredMax = Settings::instance()->getMaxConcurrentTransfers();
+    if (configuredMax <= 0)
+        return kFolderSendMaxActiveTransfers;
+    return qMin(configuredMax, kFolderSendMaxActiveTransfers);
+}
 
 int folderSendBacklogLimit()
 {
-    const int configuredMax = Settings::instance()->getMaxConcurrentTransfers();
-    const int effectiveMax = configuredMax > 0 ? configuredMax : 1;
-    const int scaled = effectiveMax * kFolderSendBacklogMultiplier;
-    return scaled > kFolderSendMinBacklog ? scaled : kFolderSendMinBacklog;
+    return folderSendActiveLimit() + kFolderSendQueuedLookahead;
+}
+
+bool isExcludedFolderSendPath(const QString& rootPath, const QString& filePath)
+{
+    const QDir rootDir(rootPath);
+    const QString relativePath = QDir::fromNativeSeparators(rootDir.relativeFilePath(filePath));
+    const QStringList parts = relativePath.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    for (const QString& part : parts) {
+        if (part.compare(QLatin1String(".git"), Qt::CaseInsensitive) == 0 ||
+                part.compare(QLatin1String(".hg"), Qt::CaseInsensitive) == 0 ||
+                part.compare(QLatin1String(".svn"), Qt::CaseInsensitive) == 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace
@@ -221,7 +241,7 @@ void MainWindow::connectSignals()
     });
 }
 
-void MainWindow::sendFile(const QString& folderName, const QString &filePath, const Device &receiver)
+void MainWindow::sendFile(const QString& folderName, const QString &filePath, const Device &receiver, int activeLimit)
 {
     Sender* sender = new Sender(receiver, folderName, filePath, this);
     mSenderModel->insertTransfer(sender);
@@ -230,7 +250,8 @@ void MainWindow::sendFile(const QString& folderName, const QString &filePath, co
     info->setFilePath(filePath);
     connectSenderQueueSignals(info);
 
-    const int maxTransfers = Settings::instance()->getMaxConcurrentTransfers();
+    const int configuredMaxTransfers = Settings::instance()->getMaxConcurrentTransfers();
+    const int maxTransfers = activeLimit >= 0 ? activeLimit : configuredMaxTransfers;
     if (maxTransfers > 0 && activeSenderCount() >= maxTransfers) {
         info->setState(TransferState::Queued);
         AppLog::write("transfer", QString("Upload queued: %1").arg(filePath));
@@ -261,7 +282,7 @@ void MainWindow::connectSenderQueueSignals(TransferInfo* info)
     connect(info, &TransferInfo::done, this, &MainWindow::processSendQueue);
     connect(info, &TransferInfo::errorOcurred, this, &MainWindow::processSendQueue);
     connect(info, &TransferInfo::stateChanged, this, [this](TransferState state) {
-        if (state == TransferState::Cancelled || state == TransferState::Disconnected)
+        if (!mSenderCancelAllActive && (state == TransferState::Cancelled || state == TransferState::Disconnected))
             processSendQueue();
         scheduleUpdateStatusBar();
     });
@@ -269,7 +290,12 @@ void MainWindow::connectSenderQueueSignals(TransferInfo* info)
 
 void MainWindow::processSendQueue()
 {
-    const int maxTransfers = Settings::instance()->getMaxConcurrentTransfers();
+    if (mSenderCancelAllActive)
+        return;
+
+    int maxTransfers = Settings::instance()->getMaxConcurrentTransfers();
+    if (mFolderSendActive)
+        maxTransfers = folderSendActiveLimit();
     if (maxTransfers == 0)
         return;
 
@@ -439,10 +465,13 @@ void MainWindow::processFolderSendBatch()
         const QFileInfo fileInfo(filePath);
         if (!fileInfo.isFile())
             continue;
+        if (isExcludedFolderSendPath(mCurrentFolderSendRootPath, filePath))
+            continue;
 
         const QString folderName = folderNameForDiscoveredFile(filePath);
+        const int activeLimit = folderSendActiveLimit();
         for (const Device& receiver : mFolderSendReceivers)
-            sendFile(folderName, filePath, receiver);
+            sendFile(folderName, filePath, receiver, activeLimit);
         ++emitted;
     }
 
@@ -450,6 +479,49 @@ void MainWindow::processFolderSendBatch()
     QTimer::singleShot(delay, this, &MainWindow::processFolderSendBatch);
 }
 
+void MainWindow::cancelFolderSendEnumeration()
+{
+    if (!mFolderSendActive && mPendingFolderSendRoots.isEmpty() && !mFolderSendIterator)
+        return;
+
+    mFolderSendActive = false;
+    mPendingFolderSendRoots.clear();
+    mFolderSendIterator.reset();
+    mFolderSendReceivers.clear();
+    mCurrentFolderSendRootPath.clear();
+    mCurrentFolderSendRootName.clear();
+    statusBar()->showMessage(tr("Folder send cancelled."), 5000);
+    AppLog::write("transfer", QStringLiteral("folder_send phase=cancelled"));
+}
+
+void MainWindow::cancelAllSenderTransfers()
+{
+    cancelFolderSendEnumeration();
+
+    mSenderCancelAllActive = true;
+    int cancelled = 0;
+    const int rows = mSenderModel->rowCount();
+    for (int i = rows - 1; i >= 0; --i) {
+        Transfer* transfer = mSenderModel->getTransfer(i);
+        if (!transfer)
+            continue;
+
+        TransferInfo* info = transfer->getTransferInfo();
+        if (!info || !info->canCancel())
+            continue;
+
+        transfer->cancel();
+        ++cancelled;
+    }
+    mSenderCancelAllActive = false;
+
+    if (cancelled > 0) {
+        statusBar()->showMessage(tr("Cancelled %1 upload(s).").arg(cancelled), 5000);
+        AppLog::write("transfer", QString("Upload cancel_all count=%1").arg(cancelled));
+    }
+
+    scheduleUpdateStatusBar();
+}
 void MainWindow::onShowMainWindowTriggered()
 {
     setMainWindowVisibility(true);
@@ -723,8 +795,12 @@ void MainWindow::onSenderClearClicked()
 void MainWindow::onSenderCancelClicked()
 {
     const int row = currentSenderRow();
-    if (row >= 0)
-        mSenderModel->getTransfer(row)->cancel();
+    if (mFolderSendActive || row < 0) {
+        cancelAllSenderTransfers();
+        return;
+    }
+
+    mSenderModel->getTransfer(row)->cancel();
 }
 
 void MainWindow::onSenderPauseClicked()

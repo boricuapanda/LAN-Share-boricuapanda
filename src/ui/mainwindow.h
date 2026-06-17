@@ -117,10 +117,12 @@ private:
     void setupToolbar();
     void setupSystrayIcon();
     void connectSignals();
-    void sendFile(const QString& folderName, const QString& fileName, const Device& receiver);
+    void sendFile(const QString& folderName, const QString& fileName, const Device& receiver, int activeLimit = -1);
     void selectReceiversAndSendTheFiles(QVector<QPair<QString, QString> > dirNameAndFullPath);
     void selectReceiversAndSendItems(const QVector<QPair<QString, QString>>& files, const QStringList& dirs);
     void startFolderSendEnumeration(const QStringList& dirs, const QVector<Device>& receivers);
+    void cancelFolderSendEnumeration();
+    void cancelAllSenderTransfers();
     void processFolderSendBatch();
     bool advanceFolderSendRoot();
     int queuedSenderCount() const;
@@ -191,6 +193,7 @@ private:
     QString mCurrentFolderSendRootPath;
     QString mCurrentFolderSendRootName;
     bool mFolderSendActive{false};
+    bool mSenderCancelAllActive{false};
 
     QAction* mShowMainWindowAction;
     QAction* mSendFilesAction;
