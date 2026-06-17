@@ -985,6 +985,8 @@ void MainWindow::setupContentHeader()
 
     auto* sendMenu = new QMenu(header);
     sendMenu->setObjectName(QStringLiteral("sendMenu"));
+    sendMenu->setAttribute(Qt::WA_TranslucentBackground, true);
+    sendMenu->setAutoFillBackground(false);
     sendMenu->addAction(mSendFilesAction);
     sendMenu->addAction(mSendFolderAction);
 
@@ -995,6 +997,8 @@ void MainWindow::setupContentHeader()
     sendBtn->setText(tr("Send"));
     sendBtn->setIcon(UiTheme::appIcon(QStringLiteral(":/img/send.png")));
     sendBtn->setIconSize(QSize(16, 16));
+    sendBtn->setMinimumSize(QSize(98, 32));
+    sendBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     sendBtn->setPopupMode(QToolButton::MenuButtonPopup);
     sendBtn->setMenu(sendMenu);
     connect(sendBtn, &QToolButton::clicked, mSendFilesAction, &QAction::trigger);

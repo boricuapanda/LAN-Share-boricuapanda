@@ -764,7 +764,8 @@ QWidget#contentHeader QToolButton#headerSendBtn[primary="true"] {
     border: 1px solid #ffffff;
     border-radius: 6px;
     min-height: 30px;
-    padding: 0 8px 0 10px;
+    min-width: 96px;
+    padding: 0 34px 0 12px;
     font-weight: 700;
 }
 
@@ -781,7 +782,7 @@ QWidget#contentHeader QToolButton#headerSendBtn[primary="true"]:open {
 }
 
 QWidget#contentHeader QToolButton#headerSendBtn::menu-button {
-    width: 22px;
+    width: 24px;
     border-left: 1px solid #b9d8e5;
     border-top-right-radius: 6px;
     border-bottom-right-radius: 6px;
@@ -980,9 +981,9 @@ QMenu#trayMenu::separator {
 QMenu#sendMenu {
     background-color: #fbfdff;
     border: 1px solid #b8dce8;
-    border-radius: 8px;
-    padding: 7px;
-    margin: 2px;
+    border-radius: 10px;
+    padding: 8px;
+    margin: 0px;
 }
 
 QMenu#sendMenu::item {
