@@ -23,6 +23,7 @@
 #include <QSyntaxHighlighter>
 #include <QTextCharFormat>
 #include <QTextCursor>
+#include <QTextOption>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -134,7 +135,8 @@ void LogViewerDialog::setupUi()
     mLogView = new QPlainTextEdit(this);
     mLogView->setObjectName(QStringLiteral("logView"));
     mLogView->setReadOnly(true);
-    mLogView->setLineWrapMode(QPlainTextEdit::NoWrap);
+    mLogView->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    mLogView->setWordWrapMode(QTextOption::WrapAnywhere);
     mLogView->setFont(QFont(QStringLiteral("Monospace"), 9));
     new LogSyntaxHighlighter(mLogView->document(), palette());
     layout->addWidget(mLogView);

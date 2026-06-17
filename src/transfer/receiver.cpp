@@ -359,10 +359,30 @@ void Receiver::processHeaderPacket(QByteArray& data)
         dstFolderPath = dstFolderPath + QDir::separator() + folderName;
 
     QDir dir(dstFolderPath);
-    if (!dir.exists())
-        dir.mkpath(dstFolderPath);
-
     mFinalFilePath = dstFolderPath + QDir::separator() + fileName;
+    if (!dir.exists() && !dir.mkpath(dstFolderPath)) {
+        const QString message = tr("Download folder is unavailable: %1").arg(dstFolderPath);
+        mInfo->setFilePath(mFinalFilePath);
+        emit mInfo->fileOpened();
+        AppLog::write("transfer", message);
+        sendCancel(QStringLiteral("file_io_error"), message);
+        mSocket->disconnectFromHost();
+        mInfo->fail(TransferFailureReason::FileIoError, message);
+        return;
+    }
+
+    const QFileInfo dstInfo(dstFolderPath);
+    if (!dstInfo.exists() || !dstInfo.isDir() || !dstInfo.isWritable()) {
+        const QString message = tr("Download folder is not writable: %1").arg(dstFolderPath);
+        mInfo->setFilePath(mFinalFilePath);
+        emit mInfo->fileOpened();
+        AppLog::write("transfer", message);
+        sendCancel(QStringLiteral("file_io_error"), message);
+        mSocket->disconnectFromHost();
+        mInfo->fail(TransferFailureReason::FileIoError, message);
+        return;
+    }
+
     if (!Settings::instance()->getReplaceExistingFile())
         mFinalFilePath = Util::getUniqueFileName(fileName, dstFolderPath);
 
