@@ -78,7 +78,7 @@ void journalCheckpointDownload(Receiver* receiver, TransferState state)
     entry.type = TransferType::Download;
     entry.filePath = receiver->getFinalFilePath();
     entry.partPath = receiver->getPartFilePath();
-    entry.peerAddress = info->getPeer().getAddress().toString();
+    entry.peerAddress = info->getPeer().displayAddress();
     entry.state = state;
     entry.dataSize = info->getDataSize();
     entry.bytesTransferred = info->getBytesTransferred();
@@ -221,7 +221,7 @@ void Receiver::finalizeDownload()
 
     mInfo->setState(TransferState::Finish);
     TransferJournal::instance()->remove(mTransferId);
-    AppLog::transferEvent(mTransferId, QStringLiteral("finish"), mSenderDev.getAddress().toString(),
+    AppLog::transferEvent(mTransferId, QStringLiteral("finish"), mSenderDev.displayAddress(),
                           QStringLiteral("-"), QStringLiteral("0"), mFinalFilePath);
     mSocket->disconnectFromHost();
     emit mInfo->done();
@@ -261,7 +261,7 @@ void Receiver::processHeaderPacket(QByteArray& data)
             QCryptographicHash::hash(localAuthToken.toUtf8(), QCryptographicHash::Sha256).toHex());
         if (!senderAuthEnabled || senderAuthHash.isEmpty() || senderAuthHash != localAuthHash) {
             AppLog::write("transfer", QString("Authentication failed from %1")
-                                       .arg(mSenderDev.getAddress().toString()));
+                                       .arg(mSenderDev.displayAddress()));
             writePacket(0, PacketType::Cancel, QByteArray());
             mSocket->disconnectFromHost();
             mInfo->fail(TransferFailureReason::AuthFailed, tr("Authentication failed. Token mismatch."));
@@ -276,7 +276,7 @@ void Receiver::processHeaderPacket(QByteArray& data)
     mTransferId = obj.value("transfer_id").toString();
     mInfo->setTransferId(mTransferId);
     if (Settings::instance()->getVerifyChecksum() && senderVerifyAdvertised && !senderVerify) {
-        AppLog::write("transfer", QString("Checksum verification rejected for %1").arg(mSenderDev.getAddress().toString()));
+        AppLog::write("transfer", QString("Checksum verification rejected for %1").arg(mSenderDev.displayAddress()));
         writePacket(0, PacketType::Cancel, QByteArray());
         mSocket->disconnectFromHost();
         mInfo->fail(TransferFailureReason::ChecksumFailed,
@@ -322,7 +322,7 @@ void Receiver::processHeaderPacket(QByteArray& data)
                     QFile::remove(mPartFilePath);
                     mBytesRead = 0;
                     AppLog::transferEvent(mTransferId, QStringLiteral("resume_reset"),
-                                          mSenderDev.getAddress().toString(),
+                                          mSenderDev.displayAddress(),
                                           QStringLiteral("journal_mismatch"),
                                           QStringLiteral("0"),
                                           tr("Stale partial file removed due to fingerprint mismatch."));
@@ -379,7 +379,7 @@ void Receiver::processHeaderPacket(QByteArray& data)
         }
         mInfo->setState(TransferState::Transfering);
         journalCheckpointDownload(this, TransferState::Transfering);
-        AppLog::transferEvent(mTransferId, QStringLiteral("start"), mSenderDev.getAddress().toString(),
+        AppLog::transferEvent(mTransferId, QStringLiteral("start"), mSenderDev.displayAddress(),
                               QStringLiteral("-"), QStringLiteral("0"), mFinalFilePath);
         if (!mTransferId.isEmpty()) {
             QMutexLocker lock(&gTransferRegistryMutex);

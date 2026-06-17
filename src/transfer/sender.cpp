@@ -80,7 +80,7 @@ void journalCheckpointUpload(const Sender* sender, TransferState state)
     entry.transferId = info->getTransferId();
     entry.type = TransferType::Upload;
     entry.filePath = info->getFilePath();
-    entry.peerAddress = info->getPeer().getAddress().toString();
+    entry.peerAddress = info->getPeer().displayAddress();
     entry.state = state;
     entry.dataSize = info->getDataSize();
     entry.bytesTransferred = info->getBytesTransferred();
@@ -134,7 +134,7 @@ void Sender::connectTransferSocket()
     mInfo->setState(TransferState::Waiting);
     journalCheckpointUpload(this, TransferState::Waiting);
     if (mInfo->getAttempt() == 0) {
-        AppLog::transferEvent(mTransferId, QStringLiteral("start"), mReceiverDev.getAddress().toString(),
+        AppLog::transferEvent(mTransferId, QStringLiteral("start"), mReceiverDev.displayAddress(),
                               QStringLiteral("-"), QString::number(mInfo->getAttempt()), mFilePath);
     }
 }
@@ -146,7 +146,7 @@ void Sender::scheduleRetry(int delayMs, int nextAttempt)
 
     mRetryScheduled = true;
     AppLog::transferEvent(mTransferId, QStringLiteral("retry"),
-                          mReceiverDev.getAddress().toString(),
+                          mReceiverDev.displayAddress(),
                           QStringLiteral("peer_disconnected"),
                           QString::number(nextAttempt),
                           tr("Retrying in %1 ms").arg(delayMs));
@@ -255,7 +255,7 @@ void Sender::onEncrypted()
 {
     if (auto* sslSocket = qobject_cast<QSslSocket*>(mSocket)) {
         QString tlsError;
-        const QString peerId = mReceiverDev.getAddress().toString();
+        const QString peerId = mReceiverDev.displayAddress();
         if (!TlsHelper::checkAndPinPeerCertificate(peerId, sslSocket->peerCertificate(), &tlsError)) {
             mInfo->fail(TransferFailureReason::TlsError, tlsError);
             mSocket->disconnectFromHost();
@@ -341,7 +341,7 @@ void Sender::finish()
     }
     mInfo->setState(TransferState::Finish);
     TransferJournal::instance()->remove(mTransferId);
-    AppLog::transferEvent(mTransferId, QStringLiteral("finish"), mReceiverDev.getAddress().toString(),
+    AppLog::transferEvent(mTransferId, QStringLiteral("finish"), mReceiverDev.displayAddress(),
                           QStringLiteral("-"), QString::number(mInfo->getAttempt()), mFilePath);
     mFile->close();
     emit mInfo->done();
@@ -589,7 +589,7 @@ void Sender::onOffsetAckTimeout()
 
     AppLog::write("transfer",
                   QString("OffsetAck timeout from %1; assuming legacy receiver and continuing from offset 0")
-                      .arg(mReceiverDev.getAddress().toString()));
+                      .arg(mReceiverDev.displayAddress()));
     applyOffsetAck(0, 1, false);
 }
 

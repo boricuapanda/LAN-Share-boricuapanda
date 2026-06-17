@@ -205,7 +205,7 @@ void TransferInfo::fail(TransferFailureReason reason, const QString& message)
     }
     AppLog::transferEvent(mTransferId,
                           QStringLiteral("failed"),
-                          mPeer.getAddress().toString(),
+                          mPeer.displayAddress(),
                           transferFailureReasonCode(reason),
                           QString::number(mAttempt),
                           message);

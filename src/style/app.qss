@@ -407,6 +407,31 @@ QPushButton:flat:disabled {
     color: #8cb4cc;
 }
 
+QWidget#transferSection QPushButton:flat {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 0;
+    margin: 0;
+    min-width: 28px;
+    max-width: 28px;
+    min-height: 28px;
+    max-height: 28px;
+}
+
+QWidget#transferSection QPushButton:flat:hover:enabled {
+    background-color: #edf5fa;
+}
+
+QWidget#transferSection QPushButton:flat:pressed:enabled {
+    background-color: #dcebf4;
+}
+
+QWidget#transferSection QPushButton:flat:disabled {
+    background: transparent;
+    color: #8cb4cc;
+}
+
 QSplitter::handle {
     background-color: #c5dff0;
     height: 4px;

@@ -18,6 +18,8 @@
 
 #include "device.h"
 
+#include <QStringList>
+
 Device::Device(const QString &id, const QString &name, const QString &osName, const QHostAddress &addr)
 : mId{id}, mName{name}, mOSName{osName}, mAddress{addr}
 {
@@ -26,6 +28,41 @@ Device::Device(const QString &id, const QString &name, const QString &osName, co
 bool Device::isValid() const
 {
     return (mId != "" && mName != "" && mOSName != "" && mAddress != QHostAddress::Null);
+}
+
+QString Device::formatAddress(const QHostAddress& address)
+{
+    const QString raw = address.toString();
+    const QString mappedPrefix = QStringLiteral("::ffff:");
+    if (!raw.startsWith(mappedPrefix, Qt::CaseInsensitive))
+        return raw;
+
+    const QString mapped = raw.mid(mappedPrefix.size());
+    QHostAddress dotted(mapped);
+    if (dotted.protocol() == QAbstractSocket::IPv4Protocol)
+        return dotted.toString();
+
+    const QStringList groups = mapped.split(QLatin1Char(':'));
+    if (groups.size() == 2) {
+        bool highOk = false;
+        bool lowOk = false;
+        const int high = groups.at(0).toInt(&highOk, 16);
+        const int low = groups.at(1).toInt(&lowOk, 16);
+        if (highOk && lowOk && high >= 0 && high <= 0xffff && low >= 0 && low <= 0xffff) {
+            return QStringLiteral("%1.%2.%3.%4")
+                .arg((high >> 8) & 0xff)
+                .arg(high & 0xff)
+                .arg((low >> 8) & 0xff)
+                .arg(low & 0xff);
+        }
+    }
+
+    return raw;
+}
+
+QString Device::displayAddress() const
+{
+    return formatAddress(mAddress);
 }
 
 void Device::setId(const QString& id)

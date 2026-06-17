@@ -48,7 +48,7 @@ protected:
 
         const Device dev = model->device(sourceRow);
         const QString haystack = dev.getName() + QLatin1Char(' ')
-                + dev.getAddress().toString() + QLatin1Char(' ')
+                + dev.displayAddress() + QLatin1Char(' ')
                 + dev.getOSName();
         return haystack.contains(filterRegularExpression());
     }

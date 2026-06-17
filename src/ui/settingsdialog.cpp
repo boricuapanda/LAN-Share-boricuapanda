@@ -490,7 +490,7 @@ void SettingsDialog::assign()
     Device me = sets->getMyDevice();
 
     ui->deviceIdLabel->setText(me.getId());
-    ui->ipAddrLabel->setText(me.getAddress().toString());
+    ui->ipAddrLabel->setText(me.displayAddress());
     ui->osNameLabel->setText(me.getOSName());
     ui->deviceNameLineEdit->setText(me.getName());
     ui->downDirlineEdit->setText(sets->getDownloadDir());

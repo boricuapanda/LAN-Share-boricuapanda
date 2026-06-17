@@ -935,7 +935,7 @@ void MainWindow::setupSidebarBranding()
     const QString hostName = settings->getDeviceName().isEmpty()
             ? QHostInfo::localHostName()
             : settings->getDeviceName();
-    const QString profile = tr("%1 • %2").arg(hostName, settings->getDeviceAddress().toString());
+    const QString profile = tr("%1 • %2").arg(hostName, Device::formatAddress(settings->getDeviceAddress()));
     auto* profileLabel = new QLabel(profile);
     profileLabel->setObjectName(QStringLiteral("sidebarProfile"));
 
@@ -1008,6 +1008,30 @@ void MainWindow::setupTransferPanels()
         ui->verticalLayout->setSpacing(4);
     if (ui->verticalLayout_2)
         ui->verticalLayout_2->setSpacing(4);
+    if (ui->horizontalLayout) {
+        ui->horizontalLayout->setContentsMargins(10, 6, 10, 4);
+        ui->horizontalLayout->setSpacing(4);
+    }
+    if (ui->horizontalLayout_2) {
+        ui->horizontalLayout_2->setContentsMargins(10, 6, 10, 4);
+        ui->horizontalLayout_2->setSpacing(4);
+    }
+
+    auto configureTransferActionButton = [](QPushButton* button) {
+        if (!button)
+            return;
+        button->setFixedSize(28, 28);
+        button->setIconSize(QSize(16, 16));
+        button->setFocusPolicy(Qt::NoFocus);
+    };
+    configureTransferActionButton(ui->resumeSenderBtn);
+    configureTransferActionButton(ui->pauseSenderBtn);
+    configureTransferActionButton(ui->cancelSenderBtn);
+    configureTransferActionButton(ui->pushButton_2);
+    configureTransferActionButton(ui->resumeReceiverBtn);
+    configureTransferActionButton(ui->pauseReceiverBtn);
+    configureTransferActionButton(ui->cancelReceiverBtn);
+    configureTransferActionButton(ui->pushButton);
 
     QWidget* uploadSection = ui->splitter->widget(0);
     QWidget* downloadSection = ui->splitter->widget(1);

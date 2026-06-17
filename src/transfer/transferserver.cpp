@@ -94,7 +94,7 @@ void TransferServer::rejectBusy(QTcpSocket* socket)
     socket->waitForBytesWritten(1000);
     AppLog::transferEvent(QStringLiteral("-"),
                           QStringLiteral("admission_busy"),
-                          socket->peerAddress().toString(),
+                          Device::formatAddress(socket->peerAddress()),
                           QStringLiteral("admission_busy"),
                           QStringLiteral("0"),
                           tr("Rejected incoming transfer: download cap reached."));

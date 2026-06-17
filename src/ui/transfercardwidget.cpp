@@ -117,7 +117,7 @@ QString TransferCardWidget::peerText(const TransferInfo* info)
 {
     const Device peer = info->getPeer();
     const QString peerName = peer.getName();
-    const QString peerIp = peer.getAddress().toString();
+    const QString peerIp = peer.displayAddress();
     if (info->getTransferType() == TransferType::Upload) {
         if (!peerName.isEmpty() && peerName != peerIp)
             return tr("To %1 (%2)").arg(peerName, peerIp);

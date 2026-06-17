@@ -73,12 +73,12 @@ QVariant DeviceListModel::data(const QModelIndex &index, int role) const
         Device dev = mDevices[index.row()];
         switch (role) {
         case Qt::DisplayRole : {
-            return dev.getName() + QStringLiteral("  (") + dev.getAddress().toString() + QLatin1Char(')');
+            return dev.getName() + QStringLiteral("  (") + dev.displayAddress() + QLatin1Char(')');
         }
         case Qt::ToolTipRole : {
             QString str = dev.getId() + "<br>" +
                           dev.getName() + " (" + dev.getOSName() + ")<br>" +
-                          dev.getAddress().toString();
+                          dev.displayAddress();
             return str;
         }
         case Qt::DecorationRole : {
@@ -133,8 +133,9 @@ Device DeviceListModel::device(const QString &id) const
 
 Device DeviceListModel::device(const QHostAddress &address) const
 {
+    const QString displayAddress = Device::formatAddress(address);
     for (Device dev : mDevices) {
-        if (dev.getAddress() == address) {
+        if (dev.getAddress() == address || dev.displayAddress() == displayAddress) {
             return dev;
         }
     }

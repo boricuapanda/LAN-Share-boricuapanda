@@ -39,6 +39,7 @@ class UiTest : public QObject
 private Q_SLOTS:
     void initTestCase();
     void init();
+    void ipv4MappedAddressDisplay();
     void mainWindowSmoke();
     void mainWindowInlineSettingsNavigation();
     void mainWindowEmptyStateLabels();
@@ -63,6 +64,16 @@ void UiTest::init()
 {
     Settings::instance()->reset();
     Settings::instance()->setTlsEnabled(false);
+}
+
+void UiTest::ipv4MappedAddressDisplay()
+{
+    const QHostAddress mapped(QStringLiteral("::ffff:192.168.1.54"));
+    QCOMPARE(Device::formatAddress(mapped), QStringLiteral("192.168.1.54"));
+
+    Device device;
+    device.setAddress(mapped);
+    QCOMPARE(device.displayAddress(), QStringLiteral("192.168.1.54"));
 }
 
 int UiTest::countSenderState(const MainWindow& window, TransferState state)
