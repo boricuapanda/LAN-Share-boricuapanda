@@ -354,6 +354,21 @@ void Receiver::processHeaderPacket(QByteArray& data)
 
     QString fileName = obj.value("name").toString();
     QString folderName = obj.value("folder").toString();
+
+    QString downloadDirError;
+    if (!Settings::instance()->ensureDownloadDirReady(&downloadDirError)) {
+        const QString basePath = Settings::instance()->getDownloadDir();
+        const QString message = tr("Download folder is unavailable: %1").arg(downloadDirError);
+        mFinalFilePath = basePath + QDir::separator() + fileName;
+        mInfo->setFilePath(mFinalFilePath);
+        emit mInfo->fileOpened();
+        AppLog::write("transfer", message);
+        sendCancel(QStringLiteral("file_io_error"), message);
+        mSocket->disconnectFromHost();
+        mInfo->fail(TransferFailureReason::FileIoError, message);
+        return;
+    }
+
     QString dstFolderPath = Settings::instance()->getDownloadDir();
     if (!folderName.isEmpty())
         dstFolderPath = dstFolderPath + QDir::separator() + folderName;

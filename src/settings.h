@@ -54,6 +54,7 @@ public:
     quint16 getBroadcastInterval() const;
     qint32 getFileBufferSize() const;
     QString getDownloadDir() const;
+    bool ensureDownloadDirReady(QString* errorMessage = nullptr) const;
 
     Device getMyDevice() const;
     QString getDeviceId() const;
@@ -108,7 +109,7 @@ private:
     Settings();
     void loadSettings();
 
-    QString getDefaultDownloadPath();
+    QString getDefaultDownloadPath() const;
 
     Device mThisDevice;
     quint16 mBCPort{0};

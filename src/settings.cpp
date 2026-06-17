@@ -21,7 +21,11 @@
 #include <QUuid>
 #include <QSettings>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QDebug>
 #include <QStandardPaths>
+#include <QStorageInfo>
 
 #include "settings.h"
 
@@ -62,6 +66,108 @@ QString uiThemeToString(UiThemeMode mode)
     default:
         return QStringLiteral("system");
     }
+}
+
+void setDirectoryError(QString* errorMessage, const QString& message)
+{
+    if (errorMessage)
+        *errorMessage = message;
+}
+
+bool ensureWritableDirectory(const QString& rawPath, QString* errorMessage)
+{
+    const QString path = QDir::cleanPath(rawPath.trimmed());
+    if (path.isEmpty()) {
+        setDirectoryError(errorMessage, QStringLiteral("Download folder is empty."));
+        return false;
+    }
+
+#if defined(Q_OS_LINUX)
+    auto mediaVolumeRootForPath = [](const QString& cleanPath) -> QString {
+        const QString userName = QString::fromLocal8Bit(qgetenv("USER"));
+        const QStringList roots = {
+            QStringLiteral("/run/media/%1/").arg(userName),
+            QStringLiteral("/media/%1/").arg(userName),
+            QStringLiteral("/media/")
+        };
+
+        for (const QString& root : roots) {
+            if (!cleanPath.startsWith(root))
+                continue;
+            const QString rest = cleanPath.mid(root.size());
+            if (rest.isEmpty())
+                return QString();
+            const int slash = rest.indexOf(QDir::separator());
+            return root + (slash >= 0 ? rest.left(slash) : rest);
+        }
+        return QString();
+    };
+
+    const QString mediaRoot = mediaVolumeRootForPath(path);
+    if (!mediaRoot.isEmpty()) {
+        const QFileInfo mediaRootInfo(mediaRoot);
+        const QStorageInfo storage(mediaRoot);
+        if (!mediaRootInfo.exists() || !storage.isValid() || !storage.isReady()
+            || QDir::cleanPath(storage.rootPath()) != mediaRoot) {
+            setDirectoryError(errorMessage,
+                              QStringLiteral("Media volume is not mounted: %1").arg(mediaRoot));
+            return false;
+        }
+    }
+#endif
+
+    QDir dir(path);
+    if (!dir.exists() && !QDir().mkpath(path)) {
+        setDirectoryError(errorMessage,
+                          QStringLiteral("Download folder does not exist and could not be created: %1")
+                              .arg(path));
+        return false;
+    }
+
+    const QFileInfo info(path);
+    if (!info.exists()) {
+        setDirectoryError(errorMessage, QStringLiteral("Download folder does not exist: %1").arg(path));
+        return false;
+    }
+    if (!info.isDir()) {
+        setDirectoryError(errorMessage, QStringLiteral("Download path is not a folder: %1").arg(path));
+        return false;
+    }
+    if (!info.isWritable()) {
+        setDirectoryError(errorMessage, QStringLiteral("Download folder is not writable: %1").arg(path));
+        return false;
+    }
+
+    const QString probePath = QDir(path).filePath(
+        QStringLiteral(".lanshare-write-test-%1")
+            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
+    QFile probe(probePath);
+    if (!probe.open(QIODevice::WriteOnly)) {
+        setDirectoryError(errorMessage,
+                          QStringLiteral("Download folder failed write test: %1 (%2)")
+                              .arg(path, probe.errorString()));
+        return false;
+    }
+    if (probe.write("ok") != 2) {
+        setDirectoryError(errorMessage,
+                          QStringLiteral("Download folder failed write test: %1 (%2)")
+                              .arg(path, probe.errorString()));
+        probe.close();
+        probe.remove();
+        return false;
+    }
+    probe.close();
+    if (probe.error() != QFileDevice::NoError) {
+        setDirectoryError(errorMessage,
+                          QStringLiteral("Download folder failed write test: %1 (%2)")
+                              .arg(path, probe.errorString()));
+        probe.remove();
+        return false;
+    }
+    probe.remove();
+
+    setDirectoryError(errorMessage, QString());
+    return true;
 }
 
 } // namespace
@@ -115,8 +221,14 @@ void Settings::setFileBufferSize(qint32 size)
 
 void Settings::setDownloadDir(const QString& dir)
 {
-    if (!dir.isEmpty() && QDir(dir).exists())
-        mDownloadDir = dir;
+    const QString path = QDir::cleanPath(dir.trimmed());
+    QString errorMessage;
+    if (!path.isEmpty() && ensureWritableDirectory(path, &errorMessage)) {
+        mDownloadDir = path;
+    } else if (!path.isEmpty()) {
+        qWarning().noquote() << QStringLiteral("Ignoring invalid LAN Share download folder: %1 (%2)")
+                                    .arg(path, errorMessage);
+    }
 }
 
 void Settings::setReplaceExistingFile(bool replace)
@@ -224,12 +336,7 @@ void Settings::loadSettings()
     mBCPort = settings.value("BroadcastPort", DefaultBroadcastPort).value<quint16>();
     mTransferPort = settings.value("TransferPort", DefaultTransferPort).value<quint16>();
     mFileBuffSize = settings.value("FileBufferSize", DefaultFileBufferSize).value<quint32>();
-    mDownloadDir = settings.value("DownloadDir", getDefaultDownloadPath()).toString();
-
-    if (!QDir(mDownloadDir).exists()) {
-        QDir dir;
-        dir.mkpath(mDownloadDir);
-    }
+    mDownloadDir = QDir::cleanPath(settings.value("DownloadDir", getDefaultDownloadPath()).toString());
 
     mBCInterval = settings.value("BroadcastInterval", DefaultBroadcastInterval).value<quint16>();
     mReplaceExistingFile = settings.value("ReplaceExistingFile", false).toBool();
@@ -249,9 +356,28 @@ void Settings::loadSettings()
     mJournalEnabled = settings.value("JournalEnabled", true).toBool();
     mJournalRetentionDays = settings.value("JournalRetentionDays", DefaultJournalRetentionDays).toInt();
     mUiTheme = uiThemeFromString(settings.value("UiTheme", QStringLiteral("system")).toString());
+
+    QString downloadDirError;
+    if (!ensureDownloadDirReady(&downloadDirError)) {
+        const QString configuredDir = mDownloadDir;
+        mDownloadDir = getDefaultDownloadPath();
+
+        QString fallbackError;
+        if (ensureDownloadDirReady(&fallbackError)) {
+            settings.setValue("DownloadDir", mDownloadDir);
+            settings.sync();
+            qWarning().noquote()
+                << QStringLiteral("LAN Share download folder unavailable: %1 (%2). Reset to %3.")
+                       .arg(configuredDir, downloadDirError, mDownloadDir);
+        } else {
+            qWarning().noquote()
+                << QStringLiteral("LAN Share download folder unavailable: %1 (%2). Default folder also failed: %3.")
+                       .arg(configuredDir, downloadDirError, fallbackError);
+        }
+    }
 }
 
-QString Settings::getDefaultDownloadPath()
+QString Settings::getDefaultDownloadPath() const
 {
 #if defined (Q_OS_WIN)
     return
@@ -338,6 +464,11 @@ qint32 Settings::getFileBufferSize() const
 QString Settings::getDownloadDir() const
 {
     return mDownloadDir;
+}
+
+bool Settings::ensureDownloadDirReady(QString* errorMessage) const
+{
+    return ensureWritableDirectory(mDownloadDir, errorMessage);
 }
 
 Device Settings::getMyDevice() const
@@ -444,4 +575,3 @@ UiThemeMode Settings::getUiTheme() const
 {
     return mUiTheme;
 }
-
