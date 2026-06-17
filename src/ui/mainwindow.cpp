@@ -785,7 +785,9 @@ void MainWindow::updateSidebarNavSelection(ContentView activeView)
 
 void MainWindow::setupActions()
 {
-    mShowMainWindowAction = new QAction(tr("Show Main Window"), this);
+    mShowMainWindowAction = new QAction(
+        UiTheme::appIcon(QStringLiteral(":/img/icon.png")),
+        tr("Show Main Window"), this);
     connect(mShowMainWindowAction, &QAction::triggered, this, &MainWindow::onShowMainWindowTriggered);
     mSendFilesAction = new QAction(
         UiTheme::appIcon(QStringLiteral(":/img/file.png")),
@@ -812,10 +814,14 @@ void MainWindow::setupActions()
         tr("About"), this);
     mAboutAction->setMenuRole(QAction::AboutRole);
     connect(mAboutAction, &QAction::triggered, this, &MainWindow::onAboutActionTriggered);
-    mAboutQtAction = new QAction(tr("About Qt"), this);
+    mAboutQtAction = new QAction(
+        UiTheme::appIcon(QStringLiteral(":/img/about.png")),
+        tr("About Qt"), this);
     mAboutQtAction->setMenuRole(QAction::AboutQtRole);
     connect(mAboutQtAction, &QAction::triggered, QApplication::instance(), &QApplication::aboutQt);
-    mQuitAction = new QAction(tr("Quit"), this);
+    mQuitAction = new QAction(
+        UiTheme::appIcon(QStringLiteral(":/img/cancel.png")),
+        tr("Quit"), this);
     connect(mQuitAction, &QAction::triggered, this, &MainWindow::quitApp);
 
     mSenderOpenAction = new QAction(tr("Open"), this);
@@ -879,6 +885,7 @@ void MainWindow::setupSystrayIcon()
     }
 
     mSystrayMenu = new QMenu(this);
+    mSystrayMenu->setObjectName(QStringLiteral("trayMenu"));
     mSystrayMenu->addAction(mShowMainWindowAction);
     mSystrayMenu->addSeparator();
     mSystrayMenu->addAction(mSendFilesAction);

@@ -940,6 +940,43 @@ QMenu::item:selected {
     color: #ffffff;
 }
 
+QMenu#trayMenu {
+    background-color: #fbfdff;
+    border: 1px solid #b7d5e4;
+    border-radius: 9px;
+    padding: 8px;
+    margin: 2px;
+}
+
+QMenu#trayMenu::item {
+    color: #174b68;
+    background-color: transparent;
+    border-radius: 7px;
+    padding: 9px 22px 9px 36px;
+    min-width: 168px;
+    min-height: 22px;
+    font-weight: 500;
+}
+
+QMenu#trayMenu::item:selected {
+    background-color: #e5f7fb;
+    color: #005a7d;
+}
+
+QMenu#trayMenu::item:pressed {
+    background-color: #c7eef7;
+}
+
+QMenu#trayMenu::icon {
+    padding-left: 10px;
+}
+
+QMenu#trayMenu::separator {
+    height: 1px;
+    background-color: #d8e8f0;
+    margin: 7px 8px;
+}
+
 QMenu#sendMenu {
     background-color: #fbfdff;
     border: 1px solid #b8dce8;

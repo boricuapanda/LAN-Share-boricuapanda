@@ -178,6 +178,11 @@ QString darkStyleOverrides()
         "QMenu { background-color: #143750; border-color: #2a6a9a; }\n"
         "QMenu::item { color: #c5dff0; }\n"
         "QMenu::item:selected { background-color: #2dd4bf; color: #0f2d42; }\n"
+        "QMenu#trayMenu { background-color: #143750; border-color: #2a6a9a; }\n"
+        "QMenu#trayMenu::item { color: #d7e4ef; }\n"
+        "QMenu#trayMenu::item:selected { background-color: #1a4d6e; color: #78e3f2; }\n"
+        "QMenu#trayMenu::item:pressed { background-color: #193343; }\n"
+        "QMenu#trayMenu::separator { background-color: #2a6a9a; }\n"
         "QScrollBar:vertical, QScrollBar:horizontal { background: #19425e; }\n"
         "QScrollBar::handle:vertical, QScrollBar::handle:horizontal { background: #2a6a9a; }\n"
         "QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover { background: #2dd4bf; }\n");
