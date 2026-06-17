@@ -24,6 +24,8 @@
 #include <QStackedWidget>
 #include <QSystemTrayIcon>
 #include <QToolButton>
+#include <QStringList>
+#include <memory>
 
 #include "model/transfertablemodel.h"
 #include "model/devicelistmodel.h"
@@ -38,6 +40,7 @@ class QDragEnterEvent;
 class QDragMoveEvent;
 class QDropEvent;
 class QMimeData;
+class QDirIterator;
 
 namespace Ui {
 class MainWindow;
@@ -116,6 +119,12 @@ private:
     void connectSignals();
     void sendFile(const QString& folderName, const QString& fileName, const Device& receiver);
     void selectReceiversAndSendTheFiles(QVector<QPair<QString, QString> > dirNameAndFullPath);
+    void selectReceiversAndSendItems(const QVector<QPair<QString, QString>>& files, const QStringList& dirs);
+    void startFolderSendEnumeration(const QStringList& dirs, const QVector<Device>& receivers);
+    void processFolderSendBatch();
+    bool advanceFolderSendRoot();
+    int queuedSenderCount() const;
+    QString folderNameForDiscoveredFile(const QString& filePath) const;
     static bool mimeHasLocalUrls(const QMimeData* mimeData);
     void processSendQueue();
     int activeSenderCount() const;
@@ -171,6 +180,17 @@ private:
     QLabel* mStatusLabel{nullptr};
     QLabel* mActiveBadge{nullptr};
     QWidget* mHeaderSendButton{nullptr};
+
+    struct FolderSendRoot {
+        QString path;
+        QString folderName;
+    };
+    QVector<Device> mFolderSendReceivers;
+    QVector<FolderSendRoot> mPendingFolderSendRoots;
+    std::unique_ptr<QDirIterator> mFolderSendIterator;
+    QString mCurrentFolderSendRootPath;
+    QString mCurrentFolderSendRootName;
+    bool mFolderSendActive{false};
 
     QAction* mShowMainWindowAction;
     QAction* mSendFilesAction;

@@ -20,6 +20,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QMenu>
+#include <QPainterPath>
 #include <QToolButton>
 #include <QCloseEvent>
 #include <QtDebug>
@@ -35,11 +36,13 @@
 #include <QUrl>
 #include <QFileInfo>
 #include <QDir>
+#include <QDirIterator>
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <QStackedWidget>
 #include <QHostInfo>
 #include <QSizePolicy>
+#include <QRegion>
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -56,6 +59,23 @@
 #include "log.h"
 #include "transfer/sender.h"
 #include "transfer/receiver.h"
+
+namespace {
+
+constexpr int kFolderSendBatchFiles = 32;
+constexpr int kFolderSendBacklogMultiplier = 8;
+constexpr int kFolderSendMinBacklog = 16;
+constexpr int kFolderSendBackoffMs = 350;
+
+int folderSendBacklogLimit()
+{
+    const int configuredMax = Settings::instance()->getMaxConcurrentTransfers();
+    const int effectiveMax = configuredMax > 0 ? configuredMax : 1;
+    const int scaled = effectiveMax * kFolderSendBacklogMultiplier;
+    return scaled > kFolderSendMinBacklog ? scaled : kFolderSendMinBacklog;
+}
+
+} // namespace
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -273,24 +293,161 @@ void MainWindow::processSendQueue()
 
 void MainWindow::selectReceiversAndSendTheFiles(QVector<QPair<QString, QString> > dirNameAndFullPath)
 {
+    selectReceiversAndSendItems(dirNameAndFullPath, QStringList());
+}
+
+void MainWindow::selectReceiversAndSendItems(const QVector<QPair<QString, QString>>& files, const QStringList& dirs)
+{
     ReceiverSelectorDialog dialog(mDeviceModel);
-    if (dialog.exec() == QDialog::Accepted) {
-        QVector<Device> receivers = dialog.getSelectedDevices();
-        for (const Device& receiver : receivers) {
-            if (receiver.isValid()) {
+    if (dialog.exec() != QDialog::Accepted)
+        return;
 
-                /*
-                 * Memastikan bahwa device/kompuer ini terdaftar di penerima
-                 * Just to make sure.
-                 */
-                mBroadcaster->sendBroadcast();
-                for (const auto& p : dirNameAndFullPath) {
-                    sendFile(p.first, p.second, receiver);
-                }
+    QVector<Device> receivers;
+    for (const Device& receiver : dialog.getSelectedDevices()) {
+        if (receiver.isValid())
+            receivers.push_back(receiver);
+    }
 
+    if (receivers.isEmpty())
+        return;
+
+    // Make sure this device is visible to the selected receivers before queueing work.
+    mBroadcaster->sendBroadcast();
+
+    for (const Device& receiver : receivers) {
+        for (const auto& p : files)
+            sendFile(p.first, p.second, receiver);
+    }
+
+    if (!dirs.isEmpty())
+        startFolderSendEnumeration(dirs, receivers);
+}
+
+void MainWindow::startFolderSendEnumeration(const QStringList& dirs, const QVector<Device>& receivers)
+{
+    if (mFolderSendActive) {
+        statusBar()->showMessage(tr("A folder send is already being mapped."), 5000);
+        AppLog::write("transfer", QStringLiteral("Folder send ignored because another folder scan is active"));
+        return;
+    }
+
+    mFolderSendReceivers = receivers;
+    mPendingFolderSendRoots.clear();
+    mFolderSendIterator.reset();
+    mCurrentFolderSendRootPath.clear();
+    mCurrentFolderSendRootName.clear();
+
+    for (const QString& dirPath : dirs) {
+        const QFileInfo info(dirPath);
+        if (!info.exists() || !info.isDir())
+            continue;
+
+        FolderSendRoot root;
+        root.path = info.absoluteFilePath();
+        root.folderName = info.fileName();
+        if (root.folderName.isEmpty())
+            root.folderName = QDir(root.path).dirName();
+        if (root.folderName.isEmpty())
+            root.folderName = tr("Selected folder");
+        mPendingFolderSendRoots.push_back(root);
+    }
+
+    if (mPendingFolderSendRoots.isEmpty() || mFolderSendReceivers.isEmpty())
+        return;
+
+    mFolderSendActive = true;
+    statusBar()->showMessage(tr("Mapping folder files for transfer..."), 5000);
+    AppLog::write("transfer", QString("folder_send phase=scan roots=%1 receivers=%2")
+                  .arg(mPendingFolderSendRoots.size())
+                  .arg(mFolderSendReceivers.size()));
+    QTimer::singleShot(0, this, &MainWindow::processFolderSendBatch);
+}
+
+bool MainWindow::advanceFolderSendRoot()
+{
+    while (!mPendingFolderSendRoots.isEmpty()) {
+        const FolderSendRoot root = mPendingFolderSendRoots.takeFirst();
+        const QDir rootDir(root.path);
+        if (!rootDir.exists())
+            continue;
+
+        mCurrentFolderSendRootPath = root.path;
+        mCurrentFolderSendRootName = QDir::fromNativeSeparators(root.folderName);
+        mFolderSendIterator = std::make_unique<QDirIterator>(
+                    root.path,
+                    QDir::Files | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot,
+                    QDirIterator::Subdirectories);
+        AppLog::write("transfer", QString("folder_send phase=scan_root path=\"%1\"").arg(root.path));
+        return true;
+    }
+
+    return false;
+}
+
+int MainWindow::queuedSenderCount() const
+{
+    int count = 0;
+    const int rows = mSenderModel->rowCount();
+    for (int i = 0; i < rows; ++i) {
+        if (mSenderModel->getTransferInfo(i)->getState() == TransferState::Queued)
+            ++count;
+    }
+    return count;
+}
+
+QString MainWindow::folderNameForDiscoveredFile(const QString& filePath) const
+{
+    const QFileInfo fileInfo(filePath);
+    const QDir rootDir(mCurrentFolderSendRootPath);
+    const QString relativeParent = QDir::fromNativeSeparators(rootDir.relativeFilePath(fileInfo.absolutePath()));
+
+    if (relativeParent.isEmpty() || relativeParent == QLatin1String("."))
+        return mCurrentFolderSendRootName;
+
+    return mCurrentFolderSendRootName + QLatin1Char('/') + relativeParent;
+}
+
+void MainWindow::processFolderSendBatch()
+{
+    if (!mFolderSendActive)
+        return;
+
+    const int backlogLimit = folderSendBacklogLimit();
+    int emitted = 0;
+
+    while (emitted < kFolderSendBatchFiles) {
+        if (activeSenderCount() + queuedSenderCount() >= backlogLimit)
+            break;
+
+        if (!mFolderSendIterator) {
+            if (!advanceFolderSendRoot()) {
+                mFolderSendActive = false;
+                mFolderSendReceivers.clear();
+                statusBar()->showMessage(tr("Folder files mapped for transfer."), 5000);
+                AppLog::write("transfer", QStringLiteral("folder_send phase=scan_complete"));
+                scheduleUpdateStatusBar();
+                return;
             }
         }
+
+        if (!mFolderSendIterator->hasNext()) {
+            mFolderSendIterator.reset();
+            continue;
+        }
+
+        const QString filePath = mFolderSendIterator->next();
+        const QFileInfo fileInfo(filePath);
+        if (!fileInfo.isFile())
+            continue;
+
+        const QString folderName = folderNameForDiscoveredFile(filePath);
+        for (const Device& receiver : mFolderSendReceivers)
+            sendFile(folderName, filePath, receiver);
+        ++emitted;
     }
+
+    const int delay = emitted == 0 ? kFolderSendBackoffMs : 0;
+    QTimer::singleShot(delay, this, &MainWindow::processFolderSendBatch);
 }
 
 void MainWindow::onShowMainWindowTriggered()
@@ -336,6 +493,7 @@ void MainWindow::dropEvent(QDropEvent* event)
     }
 
     QVector<QPair<QString, QString>> pairs;
+    QStringList dirs;
     for (const QUrl& url : mimeData->urls()) {
         if (!url.isLocalFile())
             continue;
@@ -345,21 +503,19 @@ void MainWindow::dropEvent(QDropEvent* event)
         if (!info.exists())
             continue;
 
-        if (info.isDir()) {
-            QDir dir(path);
-            pairs.append(Util::getInnerDirNameAndFullFilePath(dir, dir.dirName()));
-        } else if (info.isFile()) {
+        if (info.isDir())
+            dirs.push_back(path);
+        else if (info.isFile())
             pairs.push_back(qMakePair(QString(), path));
-        }
     }
 
-    if (pairs.isEmpty()) {
+    if (pairs.isEmpty() && dirs.isEmpty()) {
         event->ignore();
         return;
     }
 
     event->acceptProposedAction();
-    selectReceiversAndSendTheFiles(pairs);
+    selectReceiversAndSendItems(pairs, dirs);
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event)
@@ -402,19 +558,7 @@ void MainWindow::onSendFolderActionTriggered()
     if (dirs.isEmpty())
         return;
 
-    /*
-     * Iterate through all selected folders
-     */
-    QVector< QPair<QString, QString> > pairs;
-    for (const auto& dirName : dirs) {
-
-        QDir dir(dirName);
-        QVector< QPair<QString, QString> > ps =
-                Util::getInnerDirNameAndFullFilePath(dir, dir.dirName());
-        pairs.append(ps);
-    }
-
-    selectReceiversAndSendTheFiles(pairs);
+    selectReceiversAndSendItems(QVector<QPair<QString, QString>>(), dirs);
 }
 
 void MainWindow::onSettingsActionTriggered()
@@ -985,10 +1129,20 @@ void MainWindow::setupContentHeader()
 
     auto* sendMenu = new QMenu(header);
     sendMenu->setObjectName(QStringLiteral("sendMenu"));
-    sendMenu->setAttribute(Qt::WA_TranslucentBackground, true);
-    sendMenu->setAutoFillBackground(false);
     sendMenu->addAction(mSendFilesAction);
     sendMenu->addAction(mSendFolderAction);
+
+    connect(sendMenu, &QMenu::aboutToShow, sendMenu, [sendMenu]() {
+        QTimer::singleShot(0, sendMenu, [sendMenu]() {
+            const QRect rect = sendMenu->rect();
+            if (rect.isEmpty())
+                return;
+
+            QPainterPath path;
+            path.addRoundedRect(QRectF(rect).adjusted(0.0, 0.0, -1.0, -1.0), 10.0, 10.0);
+            sendMenu->setMask(QRegion(path.toFillPolygon().toPolygon()));
+        });
+    });
 
     auto* sendBtn = new QToolButton(header);
     sendBtn->setProperty("primary", true);

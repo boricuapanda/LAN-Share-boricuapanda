@@ -979,29 +979,30 @@ QMenu#trayMenu::separator {
 }
 
 QMenu#sendMenu {
-    background-color: #fbfdff;
-    border: 1px solid #b8dce8;
+    background-color: #eaf7fc;
+    border: 1px solid #78bdd4;
     border-radius: 10px;
     padding: 8px;
     margin: 0px;
 }
 
 QMenu#sendMenu::item {
-    color: #174b68;
-    background-color: transparent;
+    color: #083d58;
+    background-color: #fbfdff;
     border-radius: 6px;
     padding: 9px 18px 9px 34px;
+    margin: 1px 0px;
     min-width: 142px;
     min-height: 22px;
 }
 
 QMenu#sendMenu::item:selected {
-    background-color: #e5f7fb;
-    color: #005a7d;
+    background-color: #d4f1f8;
+    color: #004864;
 }
 
 QMenu#sendMenu::item:pressed {
-    background-color: #c7eef7;
+    background-color: #b9e5f0;
 }
 
 QMenu#sendMenu::icon {
