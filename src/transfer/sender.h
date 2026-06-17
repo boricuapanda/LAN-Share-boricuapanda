@@ -53,6 +53,7 @@ private Q_SLOTS:
 private:
     void finish();
     void sendData();
+    void scheduleSendData(int delayMs = 1);
     void sendStripedData();
     void sendHeader();
     bool setupDataSockets();
@@ -86,8 +87,12 @@ private:
     bool mIsHeaderSent;
     bool mWaitingForOffsetAck;
     bool mStartedTlsHandshake;
+    bool mFinishing;
+    bool mFinishPending;
+    bool mSendScheduled;
     int mRequestedStreams;
     int mActiveStreams;
+    int mStripedSocketIndex;
     qint64 mNextStripedOffset;
     QString mTransferId;
     QVector<QTcpSocket*> mDataSockets;

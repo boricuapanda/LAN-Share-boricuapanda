@@ -11,6 +11,7 @@
 
 class QLabel;
 class QProgressBar;
+class QPropertyAnimation;
 
 class TransferCardWidget : public QFrame
 {
@@ -34,6 +35,7 @@ protected:
 private:
     void bindInfo();
     void refresh();
+    void setProgressValue(int value, bool animated);
     static QString peerText(const TransferInfo* info);
     static QString stateBadgeText(TransferState state, TransferFailureReason reason);
 
@@ -45,5 +47,6 @@ private:
     QLabel* mPercentLabel{nullptr};
     QLabel* mMetaLabel{nullptr};
     QProgressBar* mProgress{nullptr};
+    QPropertyAnimation* mProgressAnimation{nullptr};
     bool mSelected{false};
 };

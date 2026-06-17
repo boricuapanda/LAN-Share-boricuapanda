@@ -39,6 +39,7 @@
 #include <QHBoxLayout>
 #include <QStackedWidget>
 #include <QHostInfo>
+#include <QSizePolicy>
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -935,7 +936,7 @@ void MainWindow::setupSidebarBranding()
     const QString hostName = settings->getDeviceName().isEmpty()
             ? QHostInfo::localHostName()
             : settings->getDeviceName();
-    const QString profile = tr("%1 • %2").arg(hostName, Device::formatAddress(settings->getDeviceAddress()));
+    const QString profile = tr("%1 - %2").arg(hostName, Device::formatAddress(settings->getDeviceAddress()));
     auto* profileLabel = new QLabel(profile);
     profileLabel->setObjectName(QStringLiteral("sidebarProfile"));
 
@@ -1011,10 +1012,12 @@ void MainWindow::setupTransferPanels()
     if (ui->horizontalLayout) {
         ui->horizontalLayout->setContentsMargins(10, 6, 10, 4);
         ui->horizontalLayout->setSpacing(4);
+        ui->horizontalLayout->setAlignment(Qt::AlignVCenter);
     }
     if (ui->horizontalLayout_2) {
         ui->horizontalLayout_2->setContentsMargins(10, 6, 10, 4);
         ui->horizontalLayout_2->setSpacing(4);
+        ui->horizontalLayout_2->setAlignment(Qt::AlignVCenter);
     }
 
     auto configureTransferActionButton = [](QPushButton* button) {
@@ -1023,6 +1026,8 @@ void MainWindow::setupTransferPanels()
         button->setFixedSize(28, 28);
         button->setIconSize(QSize(16, 16));
         button->setFocusPolicy(Qt::NoFocus);
+        button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        button->setContentsMargins(0, 0, 0, 0);
     };
     configureTransferActionButton(ui->resumeSenderBtn);
     configureTransferActionButton(ui->pauseSenderBtn);
@@ -1032,6 +1037,29 @@ void MainWindow::setupTransferPanels()
     configureTransferActionButton(ui->pauseReceiverBtn);
     configureTransferActionButton(ui->cancelReceiverBtn);
     configureTransferActionButton(ui->pushButton);
+
+    auto configureTransferHeader = [](QHBoxLayout* layout, QLabel* iconLabel, QLabel* titleLabel,
+                                      const QList<QPushButton*>& buttons) {
+        if (!layout)
+            return;
+
+        if (iconLabel) {
+            iconLabel->setFixedSize(18, 18);
+            iconLabel->setScaledContents(true);
+            layout->setAlignment(iconLabel, Qt::AlignVCenter);
+        }
+        if (titleLabel) {
+            titleLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+            layout->setAlignment(titleLabel, Qt::AlignVCenter);
+        }
+        for (QPushButton* button : buttons)
+            if (button)
+                layout->setAlignment(button, Qt::AlignVCenter);
+    };
+    configureTransferHeader(ui->horizontalLayout, ui->label_3, ui->label,
+                            {ui->resumeSenderBtn, ui->pauseSenderBtn, ui->cancelSenderBtn, ui->pushButton_2});
+    configureTransferHeader(ui->horizontalLayout_2, ui->label_4, ui->label_2,
+                            {ui->resumeReceiverBtn, ui->pauseReceiverBtn, ui->cancelReceiverBtn, ui->pushButton});
 
     QWidget* uploadSection = ui->splitter->widget(0);
     QWidget* downloadSection = ui->splitter->widget(1);
@@ -1255,7 +1283,7 @@ void MainWindow::updateStatusBar()
     const QString tls = Settings::instance()->getTlsEnabled() ? tr("TLS Active") : tr("TLS Off");
     const int uploads = countActiveTransfers(mSenderModel);
     const int downloads = countActiveTransfers(mReceiverModel);
-    mStatusLabel->setText(tr("Listening on port %1 • %2 • Uploads: %3 active • Downloads: %4 active")
+    mStatusLabel->setText(tr("Listening on port %1 - %2 - Uploads: %3 active - Downloads: %4 active")
                               .arg(port)
                               .arg(tls)
                               .arg(uploads)

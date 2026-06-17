@@ -161,9 +161,12 @@ void Receiver::onSslErrors(const QList<QSslError>& errors)
 
 void Receiver::sendOffsetAck(qint64 offset, int acceptedStreams)
 {
+    const bool parallelReady = !Settings::instance()->getTlsEnabled() && acceptedStreams > 1;
     QJsonObject obj({{"offset", offset},
-                     {"parallel_supported", true},
-                     {"accepted_streams", acceptedStreams}});
+                     {"protocol", TransferProtocol::CurrentVersion},
+                     {"parallel_supported", parallelReady},
+                     {"parallel_ready", parallelReady},
+                     {"accepted_streams", parallelReady ? acceptedStreams : 1}});
     const QByteArray data = QJsonDocument(obj).toJson(QJsonDocument::Compact);
     writePacket(data.size(), PacketType::OffsetAck, data);
 }

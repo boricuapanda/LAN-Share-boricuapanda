@@ -36,6 +36,10 @@ qrc_*.cpp
 build
 tests/build
 tests/ui_build
+dist/
+packaging/windows/bin/
+packaging/windows/build/
+packaging/windows/dev-build/
 
 # In-tree qmake build (when building from src/)
 src/LANShare
@@ -45,6 +49,7 @@ src/moc_predefs.h
 
 # Local tooling (e.g. downloaded gh CLI)
 .tools/
+aqtinstall.log
 
 # Local / editor artifacts
 cursor_chat_*.json

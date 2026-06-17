@@ -2,25 +2,28 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "LANShare"
-#define MyAppVersion "1.2.1"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.2.3"
+#endif
 #define MyAppExeName "LANShare.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
 ; Do not use the same AppId value in installers for other applications.
-; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-AppId={{A09C1E15-344D-47AF-9767-B8479736B5E8}
+AppId=LANShare-boricuapanda
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-;AppVerName={#MyAppName} {#MyAppVersion}
-DefaultDirName={pf}\{#MyAppName}
+AppVerName={#MyAppName} {#MyAppVersion}
+DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\..\src\text\gpl-3.0.txt
 InfoBeforeFile=info_before.txt
 InfoAfterFile=info_after.txt
-OutputBaseFilename=setup
+OutputBaseFilename={#MyAppName}-{#MyAppVersion}-setup
 Compression=lzma
 SolidCompression=yes
+SetupIconFile=..\..\src\img\icon.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

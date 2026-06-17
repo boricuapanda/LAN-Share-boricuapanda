@@ -37,6 +37,7 @@ private:
     QPlainTextEdit* mLogView;
     QLabel* mStatsLabel;
     QLabel* mPathLabel;
+    QComboBox* mScopeFilter;
     QComboBox* mPhaseFilter;
     QFileSystemWatcher* mWatcher;
 };

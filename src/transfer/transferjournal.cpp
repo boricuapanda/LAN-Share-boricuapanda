@@ -19,6 +19,7 @@
 #include <QJsonObject>
 #include <QStandardPaths>
 #include <QFileInfo>
+#include <QStringList>
 #include <algorithm>
 
 #include "log.h"
@@ -233,6 +234,7 @@ int TransferJournal::recoverOnStartup(QString* summary)
 
     QList<JournalEntry> entries = loadAll();
     int recovered = 0;
+    int discarded = 0;
     QList<JournalEntry> kept;
 
     const qint64 retentionMs = qint64(Settings::instance()->getJournalRetentionDays()) * 24 * 60 * 60 * 1000;
@@ -245,6 +247,18 @@ int TransferJournal::recoverOnStartup(QString* summary)
         if (entry.state == TransferState::Finish
             || entry.state == TransferState::Cancelled
             || entry.state == TransferState::Failed) {
+            ++discarded;
+            continue;
+        }
+
+        if (entry.type == TransferType::Upload) {
+            ++discarded;
+            continue;
+        }
+
+        if (entry.type == TransferType::Download
+            && (!QFileInfo::exists(entry.partPath) || entry.bytesTransferred <= 0)) {
+            ++discarded;
             continue;
         }
 
@@ -261,7 +275,16 @@ int TransferJournal::recoverOnStartup(QString* summary)
     saveAll(kept);
 
     if (summary) {
-        *summary = QStringLiteral("retained %1 incomplete transfer(s)").arg(recovered);
+        if (recovered > 0 || discarded > 0) {
+            QStringList parts;
+            if (recovered > 0)
+                parts << QStringLiteral("retained %1 incomplete transfer(s)").arg(recovered);
+            if (discarded > 0)
+                parts << QStringLiteral("discarded %1 stale transfer checkpoint(s)").arg(discarded);
+            *summary = parts.join(QStringLiteral("; "));
+        } else {
+            summary->clear();
+        }
     }
     return recovered;
 }

@@ -5,18 +5,67 @@
 
 #include "transfercardwidget.h"
 
-#include <QFileIconProvider>
 #include <QFileInfo>
 #include <QHBoxLayout>
-#include <QIcon>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QProgressBar>
+#include <QPropertyAnimation>
+#include <QEasingCurve>
 #include <QStyle>
 #include <QVBoxLayout>
 
 #include "model/transferfailure.h"
 #include "util.h"
+
+namespace {
+
+QPixmap transferFilePixmap(TransferType type, TransferState state)
+{
+    const bool isUpload = type == TransferType::Upload;
+    const bool inactive = state == TransferState::Cancelled || state == TransferState::Failed
+            || state == TransferState::Finish;
+    const QColor accent = inactive
+            ? QColor(QStringLiteral("#9aa8b5"))
+            : (isUpload ? QColor(QStringLiteral("#0c8fb8")) : QColor(QStringLiteral("#21a67a")));
+
+    QPixmap pixmap(28, 28);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    QRectF page(5.5, 3.5, 15.5, 21.0);
+    painter.setPen(QPen(QColor(QStringLiteral("#a9c6d8")), 1.1));
+    painter.setBrush(QColor(QStringLiteral("#fbfdff")));
+    painter.drawRoundedRect(page, 2.2, 2.2);
+
+    QPolygonF fold;
+    fold << QPointF(16.0, 3.5) << QPointF(21.0, 8.5) << QPointF(16.0, 8.5);
+    painter.setPen(QPen(QColor(QStringLiteral("#c7ddea")), 1.0));
+    painter.setBrush(QColor(QStringLiteral("#eef7fb")));
+    painter.drawPolygon(fold);
+
+    painter.setPen(QPen(accent, 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    if (isUpload) {
+        painter.drawLine(QPointF(15.5, 18.0), QPointF(23.0, 10.5));
+        painter.drawLine(QPointF(23.0, 10.5), QPointF(23.0, 16.0));
+        painter.drawLine(QPointF(23.0, 10.5), QPointF(17.5, 10.5));
+    } else {
+        painter.drawLine(QPointF(23.0, 10.5), QPointF(15.5, 18.0));
+        painter.drawLine(QPointF(15.5, 18.0), QPointF(21.0, 18.0));
+        painter.drawLine(QPointF(15.5, 18.0), QPointF(15.5, 12.5));
+    }
+
+    painter.setPen(QPen(QColor(QStringLiteral("#d7e9f2")), 1.2, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(QPointF(8.5, 13.0), QPointF(13.5, 13.0));
+    painter.drawLine(QPointF(8.5, 16.5), QPointF(12.0, 16.5));
+
+    return pixmap;
+}
+
+} // namespace
 
 TransferCardWidget::TransferCardWidget(TransferInfo* info, QWidget* parent)
     : QFrame(parent), mInfo(info)
@@ -26,16 +75,17 @@ TransferCardWidget::TransferCardWidget(TransferInfo* info, QWidget* parent)
     setCursor(Qt::PointingHandCursor);
 
     auto* root = new QHBoxLayout(this);
-    root->setContentsMargins(12, 10, 12, 10);
-    root->setSpacing(12);
+    root->setContentsMargins(8, 6, 8, 6);
+    root->setSpacing(8);
 
     mIconLabel = new QLabel(this);
-    mIconLabel->setFixedSize(36, 36);
+    mIconLabel->setObjectName(QStringLiteral("transferCardIcon"));
+    mIconLabel->setFixedSize(26, 26);
     mIconLabel->setAlignment(Qt::AlignCenter);
     root->addWidget(mIconLabel, 0, Qt::AlignTop);
 
     auto* body = new QVBoxLayout();
-    body->setSpacing(4);
+    body->setSpacing(2);
 
     auto* topRow = new QHBoxLayout();
     mFileNameLabel = new QLabel(this);
@@ -58,8 +108,9 @@ TransferCardWidget::TransferCardWidget(TransferInfo* info, QWidget* parent)
 
     auto* progressRow = new QHBoxLayout();
     mProgress = new QProgressBar(this);
+    mProgress->setObjectName(QStringLiteral("transferProgress"));
     mProgress->setTextVisible(false);
-    mProgress->setFixedHeight(8);
+    mProgress->setFixedHeight(6);
     progressRow->addWidget(mProgress, 1);
 
     mPercentLabel = new QLabel(this);
@@ -72,6 +123,10 @@ TransferCardWidget::TransferCardWidget(TransferInfo* info, QWidget* parent)
     mMetaLabel = new QLabel(this);
     mMetaLabel->setObjectName(QStringLiteral("transferCardMeta"));
     body->addWidget(mMetaLabel);
+
+    mProgressAnimation = new QPropertyAnimation(mProgress, "value", this);
+    mProgressAnimation->setDuration(260);
+    mProgressAnimation->setEasingCurve(QEasingCurve::OutCubic);
 
     root->addLayout(body, 1);
 
@@ -166,17 +221,9 @@ void TransferCardWidget::refresh()
     mPeerLabel->setText(peerText(mInfo));
     mPeerLabel->setToolTip(mPeerLabel->text());
 
-    const QFileInfo fileInfo(path);
-    QIcon icon;
-    if (fileInfo.exists()) {
-        QFileIconProvider provider;
-        icon = provider.icon(fileInfo);
-    }
-    if (icon.isNull())
-        icon = style()->standardIcon(QStyle::SP_FileIcon);
-    mIconLabel->setPixmap(icon.pixmap(32, 32));
-
     const TransferState state = mInfo->getState();
+    mIconLabel->setPixmap(transferFilePixmap(mInfo->getTransferType(), state));
+
     const QString badge = stateBadgeText(state, mInfo->getFailureReason());
     mBadgeLabel->setText(badge);
     mBadgeLabel->setVisible(!badge.isEmpty());
@@ -184,7 +231,7 @@ void TransferCardWidget::refresh()
     const bool inactive = state == TransferState::Queued || state == TransferState::Cancelled
             || state == TransferState::Failed || state == TransferState::Finish;
     mProgress->setEnabled(!inactive || state == TransferState::Transfering);
-    mProgress->setValue(mInfo->getProgress());
+    setProgressValue(mInfo->getProgress(), state == TransferState::Transfering);
     mPercentLabel->setText(state == TransferState::Transfering || state == TransferState::Finish
                                    ? QStringLiteral("%1%").arg(mInfo->getProgress())
                                    : QString());
@@ -199,12 +246,12 @@ void TransferCardWidget::refresh()
     } else if (state == TransferState::Failed) {
         mMetaLabel->setText(mBadgeLabel->text());
     } else if (state == TransferState::Finish) {
-        mMetaLabel->setText(tr("Completed • %1").arg(Util::sizeToString(total)));
+        mMetaLabel->setText(tr("Completed - %1").arg(Util::sizeToString(total)));
     } else if (state == TransferState::Transfering || state == TransferState::Paused
                || state == TransferState::Waiting) {
         const QString speed = mInfo->getSpeedText();
         const QString eta = mInfo->getEtaText();
-        mMetaLabel->setText(QStringLiteral("%1 • %2 / %3  %4")
+        mMetaLabel->setText(QStringLiteral("%1 - %2 / %3  %4")
                                 .arg(speed, Util::sizeToString(done), Util::sizeToString(total), eta)
                                 .trimmed());
     } else {
@@ -214,4 +261,20 @@ void TransferCardWidget::refresh()
     setProperty("transferState", static_cast<int>(state));
     style()->unpolish(this);
     style()->polish(this);
+}
+
+void TransferCardWidget::setProgressValue(int value, bool animated)
+{
+    value = qBound(0, value, 100);
+    if (!animated || qAbs(mProgress->value() - value) <= 1) {
+        if (mProgressAnimation)
+            mProgressAnimation->stop();
+        mProgress->setValue(value);
+        return;
+    }
+
+    mProgressAnimation->stop();
+    mProgressAnimation->setStartValue(mProgress->value());
+    mProgressAnimation->setEndValue(value);
+    mProgressAnimation->start();
 }

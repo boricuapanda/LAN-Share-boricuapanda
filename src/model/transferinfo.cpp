@@ -143,7 +143,10 @@ void TransferInfo::setBytesTransferred(qint64 bytes)
     if (elapsedMs > 0)
         mSpeedBps = bytes * 1000.0 / elapsedMs;
 
-    emit statsChanged();
+    if (elapsedMs - mLastStatsEmitMs >= 250 || bytes >= mDataSize) {
+        mLastStatsEmitMs = elapsedMs;
+        emit statsChanged();
+    }
 }
 
 QString TransferInfo::getSpeedText() const
@@ -164,6 +167,7 @@ QString TransferInfo::getEtaText() const
 void TransferInfo::resetSpeedTracking()
 {
     mBytesTransferred = 0;
+    mLastStatsEmitMs = 0;
     mSpeedBps = 0.0;
     mSpeedTimer.invalidate();
 }

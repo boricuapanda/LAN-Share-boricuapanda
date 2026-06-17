@@ -325,6 +325,9 @@ void SettingsDialog::setupParallelStreamsBadge()
 
     connect(ui->parallelStreamsSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &SettingsDialog::onParallelStreamsChanged);
+    connect(ui->tlsCheckBox, &QCheckBox::toggled, this, [this]() {
+        onParallelStreamsChanged(ui->parallelStreamsSpinBox->value());
+    });
     onParallelStreamsChanged(ui->parallelStreamsSpinBox->value());
 }
 
@@ -400,6 +403,10 @@ void SettingsDialog::onParallelStreamsChanged(int value)
 {
     if (!mParallelStreamsBadge)
         return;
+    if (ui->tlsCheckBox->isChecked() && value > 1) {
+        mParallelStreamsBadge->setText(tr("TLS uses 1 stream"));
+        return;
+    }
     mParallelStreamsBadge->setText(value == 1
             ? tr("1 stream")
             : tr("%1 streams").arg(value));

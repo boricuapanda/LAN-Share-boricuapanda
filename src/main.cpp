@@ -17,6 +17,7 @@
 */
 
 #include <QApplication>
+#include <QSslSocket>
 #include <QtDebug>
 
 #include "settings.h"
@@ -36,6 +37,11 @@ int main(int argc, char *argv[])
     UiTheme::apply(&app);
     app.setQuitOnLastWindowClosed(false);
     AppLog::install();
+    AppLog::write(QStringLiteral("tls"),
+                  QStringLiteral("Qt SSL support=%1 build='%2' runtime='%3'")
+                      .arg(QSslSocket::supportsSsl() ? QStringLiteral("yes") : QStringLiteral("no"),
+                           QSslSocket::sslLibraryBuildVersionString(),
+                           QSslSocket::sslLibraryVersionString()));
 
     QString recoverySummary;
     TransferJournal::instance()->recoverOnStartup(&recoverySummary);

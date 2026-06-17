@@ -41,8 +41,8 @@ TransferListPanel::TransferListPanel(TransferTableModel* model,
 
     mCardContainer = new QWidget(mScrollArea);
     mCardLayout = new QVBoxLayout(mCardContainer);
-    mCardLayout->setContentsMargins(0, 0, 0, 0);
-    mCardLayout->setSpacing(8);
+    mCardLayout->setContentsMargins(10, 0, 10, 8);
+    mCardLayout->setSpacing(5);
     mCardLayout->addStretch();
     mScrollArea->setWidget(mCardContainer);
     mStack->addWidget(mScrollArea);

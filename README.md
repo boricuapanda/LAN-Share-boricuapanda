@@ -72,6 +72,50 @@ The build script uses `qmake-qt5` or `qmake-qt6` and installs Qt development pac
 
 ---
 
+## Windows development
+
+To build and launch the app from the terminal for debugging:
+
+```powershell
+.\run-windows-app.ps1
+```
+
+On this machine the script defaults to the local Qt install at `C:\tmp\Qt\5.15.2\msvc2019_64` and imports the Visual Studio 2022 compiler environment automatically.
+
+To rebuild cleanly before launch:
+
+```powershell
+.\run-windows-app.ps1 -Clean
+```
+
+If the app is already running from the dev build and Windows locks `LANShare.exe`, stop it automatically:
+
+```powershell
+.\run-windows-app.ps1 -Clean -StopExisting
+```
+
+To rebuild and stage the app without opening the window:
+
+```powershell
+.\run-windows-app.ps1 -Clean -StopExisting -NoLaunch
+```
+
+The dev runner also copies the OpenSSL 1.1 runtime DLLs needed by Qt TLS transfers. If transfers fail with `TLS initialization failed`, check the latest log for `Qt SSL support=yes`:
+
+```powershell
+Get-Content "$env:LOCALAPPDATA\LANShare\lanshare.log" -Tail 40
+```
+
+To build the wizard-style Windows installer later:
+
+```powershell
+.\build-windows-installer.ps1 -Clean
+```
+
+The installer output is written to `dist/windows/`.
+
+---
+
 ## Tests
 
 ```bash

@@ -81,6 +81,7 @@ LogViewerDialog::LogViewerDialog(QWidget* parent)
     , mLogView(nullptr)
     , mStatsLabel(nullptr)
     , mPathLabel(nullptr)
+    , mScopeFilter(nullptr)
     , mPhaseFilter(nullptr)
     , mWatcher(new QFileSystemWatcher(this))
 {
@@ -108,6 +109,11 @@ void LogViewerDialog::setupUi()
     layout->addWidget(mStatsLabel);
 
     auto* filterRow = new QHBoxLayout();
+    auto* scopeLabel = new QLabel(tr("Scope:"), this);
+    mScopeFilter = new QComboBox(this);
+    mScopeFilter->setObjectName(QStringLiteral("scopeFilterComboBox"));
+    mScopeFilter->addItem(tr("Current session"), QStringLiteral("session"));
+    mScopeFilter->addItem(tr("Full visible tail"), QString());
     auto* filterLabel = new QLabel(tr("Phase:"), this);
     mPhaseFilter = new QComboBox(this);
     mPhaseFilter->setObjectName(QStringLiteral("phaseFilterComboBox"));
@@ -117,6 +123,9 @@ void LogViewerDialog::setupUi()
     mPhaseFilter->addItem(tr("failure"), QStringLiteral("failed"));
     mPhaseFilter->addItem(tr("retry"), QStringLiteral("retry"));
     mPhaseFilter->addItem(tr("recovery"), QStringLiteral("recovery"));
+    filterRow->addWidget(scopeLabel);
+    filterRow->addWidget(mScopeFilter);
+    filterRow->addSpacing(12);
     filterRow->addWidget(filterLabel);
     filterRow->addWidget(mPhaseFilter);
     filterRow->addStretch();
@@ -146,19 +155,30 @@ void LogViewerDialog::setupUi()
     connect(refreshBtn, &QPushButton::clicked, this, &LogViewerDialog::reloadLog);
     connect(openFolderBtn, &QPushButton::clicked, this, &LogViewerDialog::openLogFolder);
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+    connect(mScopeFilter, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &LogViewerDialog::reloadLog);
     connect(mPhaseFilter, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &LogViewerDialog::reloadLog);
 }
 
 QString LogViewerDialog::filterLogContent(const QString& content) const
 {
+    QString scopedContent = content;
+    if (mScopeFilter->currentData().toString() == QLatin1String("session")) {
+        const int sessionStart = scopedContent.lastIndexOf(QStringLiteral("tls Qt SSL support="));
+        if (sessionStart >= 0) {
+            const int lineStart = scopedContent.lastIndexOf(QLatin1Char('\n'), sessionStart);
+            scopedContent = scopedContent.mid(lineStart < 0 ? 0 : lineStart + 1);
+        }
+    }
+
     const QString phase = mPhaseFilter->currentData().toString();
     if (phase.isEmpty())
-        return content;
+        return scopedContent;
 
     const QString needle = QStringLiteral("phase=%1").arg(phase);
     QStringList filtered;
-    const QStringList lines = content.split(QLatin1Char('\n'));
+    const QStringList lines = scopedContent.split(QLatin1Char('\n'));
     for (const QString& line : lines) {
         if (line.contains(needle))
             filtered.append(line);
@@ -186,9 +206,10 @@ void LogViewerDialog::reloadLog()
     const TransferLogStats stats = AppLog::parseTransferStats(content);
     if (stats.starts == 0 && stats.finishes == 0 && stats.failures == 0
         && stats.retries == 0 && stats.recoveries == 0) {
-        mStatsLabel->setText(tr("Reliability summary: no structured transfer events in this log tail."));
+        mStatsLabel->setText(tr("Reliability summary for visible log tail: no structured transfer events."));
     } else {
-        mStatsLabel->setText(tr("Reliability summary: %1").arg(AppLog::formatTransferStatsSummary(stats)));
+        mStatsLabel->setText(tr("Reliability summary for visible log tail: %1")
+                                 .arg(AppLog::formatTransferStatsSummary(stats)));
     }
 }
 

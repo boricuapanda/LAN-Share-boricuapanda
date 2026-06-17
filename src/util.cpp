@@ -85,12 +85,29 @@ void configureOpenFileDialog(QFileDialog& dialog)
 void configureStorageDialog(QFileDialog& dialog, bool allowMultiple)
 {
     dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog.setObjectName(QStringLiteral("storageFileDialog"));
     dialog.setSidebarUrls(storageSidebarUrls());
+    dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(
+        "QFileDialog#storageFileDialog QComboBox::drop-down {"
+        "  subcontrol-origin: border;"
+        "  subcontrol-position: top right;"
+        "  width: 34px;"
+        "  border-left: 1px solid #d3dbe5;"
+        "  background-color: #f1f4f8;"
+        "}"
+        "QFileDialog#storageFileDialog QComboBox::down-arrow {"
+        "  image: url(:/img/chevron-down.xpm);"
+        "  width: 12px;"
+        "  height: 8px;"
+        "}"
+        "QFileDialog#storageFileDialog QComboBox::drop-down:hover {"
+        "  background-color: #e3ebf2;"
+        "}"));
 
     const auto updateTitle = [&dialog](const QString& path) {
         const QString freeSpace = Util::freeSpaceString(path);
-        const QString baseTitle = dialog.windowTitle().section(QStringLiteral(" — "), 0, 0);
-        dialog.setWindowTitle(freeSpace.isEmpty() ? baseTitle : baseTitle + QStringLiteral(" — ") + freeSpace);
+        const QString baseTitle = dialog.windowTitle().section(QStringLiteral(" - "), 0, 0);
+        dialog.setWindowTitle(freeSpace.isEmpty() ? baseTitle : baseTitle + QStringLiteral(" - ") + freeSpace);
     };
     QObject::connect(&dialog, &QFileDialog::directoryEntered, &dialog, updateTitle);
     QObject::connect(&dialog, &QFileDialog::currentChanged, &dialog, [&](const QString& path) {
@@ -272,7 +289,7 @@ QString Util::freeSpaceString(const QString& path)
 QString Util::formatSpeed(double bytesPerSecond)
 {
     if (bytesPerSecond < 1.0)
-        return QStringLiteral("—");
+        return QStringLiteral("-");
 
     return QObject::tr("%1/s").arg(sizeToString((qint64)bytesPerSecond));
 }
@@ -280,7 +297,7 @@ QString Util::formatSpeed(double bytesPerSecond)
 QString Util::formatEta(qint64 secondsRemaining)
 {
     if (secondsRemaining < 0)
-        return QObject::tr("ETA —");
+        return QObject::tr("ETA -");
     if (secondsRemaining == 0)
         return QObject::tr("ETA <1s");
 

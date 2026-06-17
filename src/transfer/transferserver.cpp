@@ -153,6 +153,13 @@ void TransferServer::startReceiver(QTcpSocket* socket)
             return;
         }
 
+        if (!QSslSocket::supportsSsl()) {
+            rec->getTransferInfo()->fail(TransferFailureReason::TlsError,
+                                         tr("TLS setup failed: OpenSSL 1.1 runtime is missing or could not be loaded."));
+            socket->disconnectFromHost();
+            return;
+        }
+
         if (!mTlsCredentialsReady) {
             QString tlsError;
             mTlsCredentialsReady = TlsHelper::loadServerCredentials(&mServerCert, &mServerKey, &tlsError);

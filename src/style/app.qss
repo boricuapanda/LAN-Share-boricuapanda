@@ -172,14 +172,15 @@ QLabel#sidebarProfile {
 }
 
 QFrame#transferCard {
-    background-color: #ffffff;
-    border: 1px solid #d0e8f4;
-    border-radius: 8px;
+    background-color: #f8fcfe;
+    border: 1px solid #d7edf6;
+    border-radius: 6px;
+    min-height: 58px;
 }
 
 QFrame#transferCard[selected="true"] {
-    border: 2px solid #14a3b8;
-    background-color: #f4fcfd;
+    border: 1px solid #8bd7e3;
+    background-color: #f4fbfd;
 }
 
 QFrame#transferCard[transferState="8"] {
@@ -194,34 +195,44 @@ QFrame#transferCard[transferState="1"] {
 
 QLabel#transferCardFileName {
     color: #1b4f72;
-    font-size: 13px;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 QLabel#transferCardPeer,
 QLabel#transferCardMeta {
     color: #5a8fad;
-    font-size: 12px;
+    font-size: 10px;
 }
 
 QLabel#transferCardPercent {
     color: #1a6daa;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
 }
 
 QLabel#transferCardBadge {
     color: #1a6daa;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: bold;
 }
 
-QFrame#transferCard QProgressBar {
-    min-height: 8px;
-    max-height: 8px;
-    border-radius: 4px;
+QLabel#transferCardIcon {
+    background-color: #eef7fb;
+    border: 1px solid #d7ebf4;
+    border-radius: 5px;
 }
 
-QFrame#transferCard QProgressBar::chunk {
+QFrame#transferCard QProgressBar#transferProgress {
+    min-height: 6px;
+    max-height: 6px;
+    border: 1px solid #c9e7f2;
+    border-radius: 3px;
+    background-color: #eef7fb;
+}
+
+QFrame#transferCard QProgressBar#transferProgress::chunk {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0c8fb8, stop:0.55 #14a3b8, stop:1 #35c7d8);
     border-radius: 3px;
 }
 

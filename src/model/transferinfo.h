@@ -94,6 +94,7 @@ private:
     int mProgress;
     qint64 mDataSize;
     qint64 mBytesTransferred;
+    qint64 mLastStatsEmitMs{0};
     double mSpeedBps;
     QElapsedTimer mSpeedTimer;
     QString mFilePath;
