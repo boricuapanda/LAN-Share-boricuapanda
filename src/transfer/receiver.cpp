@@ -173,6 +173,8 @@ void Receiver::sendOffsetAck(qint64 offset, int acceptedStreams)
                      {"accepted_streams", parallelReady ? acceptedStreams : 1}});
     const QByteArray data = QJsonDocument(obj).toJson(QJsonDocument::Compact);
     writePacket(data.size(), PacketType::OffsetAck, data);
+    if (mSocket)
+        mSocket->flush();
 }
 
 void Receiver::sendProgressAck(bool force)
@@ -193,6 +195,8 @@ void Receiver::sendProgressAck(bool force)
                      {"size", mFileSize}});
     const QByteArray data = QJsonDocument(obj).toJson(QJsonDocument::Compact);
     writePacket(data.size(), PacketType::OffsetAck, data);
+    if (mSocket)
+        mSocket->flush();
 }
 
 void Receiver::sendFinishAck()
@@ -349,6 +353,9 @@ void Receiver::processHeaderPacket(QByteArray& data)
         mFinalFilePath = Util::getUniqueFileName(fileName, dstFolderPath);
 
     mPartFilePath = mFinalFilePath + ".part";
+    mInfo->setFilePath(mFinalFilePath);
+    emit mInfo->fileOpened();
+
     mBytesRead = 0;
     mAcceptedStreams = 1;
     mLastProgressAckMs = 0;
@@ -406,7 +413,6 @@ void Receiver::processHeaderPacket(QByteArray& data)
     }
 
     QString writePath = mResumePartialDownloads ? mPartFilePath : mFinalFilePath;
-    mInfo->setFilePath(mFinalFilePath);
     mFile = new QFile(writePath, this);
     QIODevice::OpenMode mode = QIODevice::WriteOnly;
     if (mResumePartialDownloads && mBytesRead > 0)
@@ -431,7 +437,6 @@ void Receiver::processHeaderPacket(QByteArray& data)
             gTransferRegistry.insert(mTransferId, this);
             mRegisteredTransferId = true;
         }
-        emit mInfo->fileOpened();
         sendOffsetAck(mBytesRead, mAcceptedStreams);
     } else {
         mInfo->fail(TransferFailureReason::FileIoError, tr("Failed to write ") + writePath);

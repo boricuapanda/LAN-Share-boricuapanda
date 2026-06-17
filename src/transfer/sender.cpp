@@ -854,6 +854,12 @@ void Sender::processCancelPacket(QByteArray& data)
 {
     Q_UNUSED(data);
 
+    AppLog::transferEvent(mTransferId,
+                          QStringLiteral("cancelled"),
+                          mReceiverDev.displayAddress(),
+                          QStringLiteral("peer_cancelled"),
+                          QString::number(mInfo->getAttempt()),
+                          tr("Receiver cancelled or rejected the transfer."));
     mInfo->setState(TransferState::Cancelled);
     mInfo->setProgress(0);
     closeDataSockets();
