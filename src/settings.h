@@ -39,7 +39,7 @@ const QString PROGRAM_NAME{"LAN Share"};
 const QString PROGRAM_DESC{"A simple program that let you transfer files over local area network (LAN) easily."};
 constexpr int PROGRAM_X_VER{1};
 constexpr int PROGRAM_Y_VER{2};
-constexpr int PROGRAM_Z_VER{4};
+constexpr int PROGRAM_Z_VER{5};
 const QString SETTINGS_FILE{"LANSConfig"};
 
 enum class UiThemeMode { System, Light, Dark };
