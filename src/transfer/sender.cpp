@@ -246,6 +246,8 @@ void Sender::cancel()
         return;
 
     if (mInfo->getState() == TransferState::Queued || !mSocket) {
+        mOffsetAckTimer->stop();
+        mWaitingForOffsetAck = false;
         mInfo->setState(TransferState::Cancelled);
         mInfo->setProgress(0);
         mCancelled = true;
@@ -253,6 +255,8 @@ void Sender::cancel()
     }
 
     if (mInfo->canCancel()) {
+        mOffsetAckTimer->stop();
+        mWaitingForOffsetAck = false;
         writePacket(0, PacketType::Cancel, QByteArray());
         closeDataSockets();
         mInfo->setState(TransferState::Cancelled);
@@ -703,7 +707,7 @@ void Sender::beginOffsetAckWait()
 
 void Sender::onOffsetAckTimeout()
 {
-    if (!mWaitingForOffsetAck)
+    if (!mWaitingForOffsetAck || mCancelled || isTerminalState())
         return;
 
     AppLog::write("transfer",
@@ -715,6 +719,10 @@ void Sender::onOffsetAckTimeout()
 void Sender::applyOffsetAck(qint64 offset, int acceptedStreams, bool peerSupportsParallel)
 {
     mOffsetAckTimer->stop();
+    if (mCancelled || isTerminalState()) {
+        mWaitingForOffsetAck = false;
+        return;
+    }
     if (offset > 0) {
         peerSupportsParallel = false;
         acceptedStreams = 1;
@@ -852,22 +860,30 @@ void Sender::processOffsetAckPacket(QByteArray& data)
 
 void Sender::processCancelPacket(QByteArray& data)
 {
-    Q_UNUSED(data);
+    QJsonObject obj = QJsonDocument::fromJson(data).object();
+    const QString reason = obj.value(QStringLiteral("reason")).toString(QStringLiteral("peer_cancelled"));
+    const QString message = obj.value(QStringLiteral("message")).toString(tr("Receiver cancelled or rejected the transfer."));
+
+    mOffsetAckTimer->stop();
+    mWaitingForOffsetAck = false;
+    mSendScheduled = false;
+    mFinishPending = false;
+    mFinishing = false;
 
     AppLog::transferEvent(mTransferId,
                           QStringLiteral("cancelled"),
                           mReceiverDev.displayAddress(),
-                          QStringLiteral("peer_cancelled"),
+                          reason,
                           QString::number(mInfo->getAttempt()),
-                          tr("Receiver cancelled or rejected the transfer."));
+                          message);
     mInfo->setState(TransferState::Cancelled);
     mInfo->setProgress(0);
     closeDataSockets();
     TransferJournal::instance()->remove(mTransferId);
-    mSocket->disconnectFromHost();
+    if (mSocket)
+        mSocket->disconnectFromHost();
     mCancelled = true;
 }
-
 void Sender::processPausePacket(QByteArray& data)
 {
     Q_UNUSED(data);

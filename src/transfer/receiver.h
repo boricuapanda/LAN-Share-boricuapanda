@@ -52,6 +52,7 @@ private:
     void sendOffsetAck(qint64 offset, int acceptedStreams);
     void sendProgressAck(bool force = false);
     void sendFinishAck();
+    void sendCancel(const QString& reason, const QString& message);
     void hashExistingPartFile();
     void removePartFile();
     void finalizeDownload();

@@ -113,7 +113,7 @@ void Receiver::cancel()
         mInfo->setState(TransferState::Cancelled);
         mInfo->setProgress(0);
         clearReadBuffer();
-        writePacket(0, PacketType::Cancel, QByteArray());
+        sendCancel(QStringLiteral("user_cancelled"), tr("Receiver cancelled the transfer."));
         closeDataSockets();
         removePartFile();
         TransferJournal::instance()->remove(mTransferId);
@@ -213,6 +213,20 @@ void Receiver::sendFinishAck()
     mSocket->flush();
 }
 
+void Receiver::sendCancel(const QString& reason, const QString& message)
+{
+    QJsonObject obj({{"reason", reason},
+                     {"message", message},
+                     {"protocol", TransferProtocol::CurrentVersion}});
+    const QByteArray data = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+    writePacket(data.size(), PacketType::Cancel, data);
+    if (mSocket) {
+        mSocket->flush();
+        if (mSocket->state() == QAbstractSocket::ConnectedState)
+            mSocket->waitForBytesWritten(1000);
+    }
+}
+
 void Receiver::hashExistingPartFile()
 {
     if (!mVerifyChecksum || !mHash || !mFile || mBytesRead <= 0)
@@ -309,7 +323,7 @@ void Receiver::processHeaderPacket(QByteArray& data)
         if (!senderAuthEnabled || senderAuthHash.isEmpty() || senderAuthHash != localAuthHash) {
             AppLog::write("transfer", QString("Authentication failed from %1")
                                        .arg(mSenderDev.displayAddress()));
-            writePacket(0, PacketType::Cancel, QByteArray());
+            sendCancel(QStringLiteral("auth_failed"), tr("Authentication failed. Token mismatch."));
             mSocket->disconnectFromHost();
             mInfo->fail(TransferFailureReason::AuthFailed, tr("Authentication failed. Token mismatch."));
             return;
@@ -324,7 +338,7 @@ void Receiver::processHeaderPacket(QByteArray& data)
     mInfo->setTransferId(mTransferId);
     if (Settings::instance()->getVerifyChecksum() && senderVerifyAdvertised && !senderVerify) {
         AppLog::write("transfer", QString("Checksum verification rejected for %1").arg(mSenderDev.displayAddress()));
-        writePacket(0, PacketType::Cancel, QByteArray());
+        sendCancel(QStringLiteral("checksum_rejected"), tr("Transfer rejected: sender disabled checksum verification."));
         mSocket->disconnectFromHost();
         mInfo->fail(TransferFailureReason::ChecksumFailed,
                     tr("Transfer rejected: sender disabled checksum verification."));
@@ -402,7 +416,7 @@ void Receiver::processHeaderPacket(QByteArray& data)
         mInfo->setFilePath(mFinalFilePath);
         AppLog::write("transfer", QString("Insufficient space for %1 in %2")
                                        .arg(mFinalFilePath, dstFolderPath));
-        writePacket(0, PacketType::Cancel, QByteArray());
+        sendCancel(QStringLiteral("insufficient_space"), tr("Not enough free space for incoming transfer."));
         mSocket->disconnectFromHost();
         mInfo->fail(TransferFailureReason::InsufficientSpace,
                     tr("Not enough free space in %1 (need %2, have %3)")
@@ -440,7 +454,7 @@ void Receiver::processHeaderPacket(QByteArray& data)
         sendOffsetAck(mBytesRead, mAcceptedStreams);
     } else {
         mInfo->fail(TransferFailureReason::FileIoError, tr("Failed to write ") + writePath);
-        writePacket(0, PacketType::Cancel, QByteArray());
+        sendCancel(QStringLiteral("file_io_error"), tr("Failed to open destination file for writing."));
         mSocket->disconnectFromHost();
     }
 }
@@ -450,7 +464,7 @@ void Receiver::failDownloadWrite(const QString& message)
     if (mInfo->getState() == TransferState::Failed || mInfo->getState() == TransferState::Cancelled)
         return;
 
-    writePacket(0, PacketType::Cancel, QByteArray());
+    sendCancel(QStringLiteral("file_io_error"), message);
     closeDataSockets();
     removePartFile();
     if (mFile) {
@@ -600,6 +614,7 @@ void Receiver::handleStripedPayload(const QByteArray& payload)
             if (!mResumePartialDownloads && mFile)
                 mFile->remove();
             AppLog::write("transfer", QString("Checksum failed: %1").arg(mFinalFilePath));
+            sendCancel(QStringLiteral("checksum_failed"), tr("Checksum verification failed."));
             mSocket->disconnectFromHost();
             mInfo->fail(TransferFailureReason::ChecksumFailed, tr("Checksum verification failed."));
             return;
@@ -647,6 +662,7 @@ void Receiver::processFinishPacket(QByteArray& data)
             if (!mResumePartialDownloads && mFile)
                 mFile->remove();
             AppLog::write("transfer", QString("Checksum failed: %1").arg(mFinalFilePath));
+            sendCancel(QStringLiteral("checksum_failed"), tr("Checksum verification failed."));
             mSocket->disconnectFromHost();
             mInfo->fail(TransferFailureReason::ChecksumFailed, tr("Checksum verification failed."));
             return;
