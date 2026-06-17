@@ -453,8 +453,11 @@ void Receiver::processHeaderPacket(QByteArray& data)
         }
         sendOffsetAck(mBytesRead, mAcceptedStreams);
     } else {
-        mInfo->fail(TransferFailureReason::FileIoError, tr("Failed to write ") + writePath);
-        sendCancel(QStringLiteral("file_io_error"), tr("Failed to open destination file for writing."));
+        const QString message = tr("Failed to open destination file for writing: %1 (%2)")
+                .arg(writePath, mFile->errorString());
+        AppLog::write("transfer", message);
+        mInfo->fail(TransferFailureReason::FileIoError, message);
+        sendCancel(QStringLiteral("file_io_error"), message);
         mSocket->disconnectFromHost();
     }
 }
@@ -464,6 +467,7 @@ void Receiver::failDownloadWrite(const QString& message)
     if (mInfo->getState() == TransferState::Failed || mInfo->getState() == TransferState::Cancelled)
         return;
 
+    AppLog::write("transfer", message);
     sendCancel(QStringLiteral("file_io_error"), message);
     closeDataSockets();
     removePartFile();
@@ -488,9 +492,14 @@ void Receiver::processDataPacket(QByteArray& data)
     if (!mFile || mBytesRead + data.size() > mFileSize)
         return;
 
+    const qint64 expected = data.size();
     const qint64 written = mFile->write(data);
-    if (written != data.size()) {
-        failDownloadWrite(tr("Failed to write download data to disk."));
+    if (written != expected) {
+        failDownloadWrite(tr("Failed to write download data to disk: %1 (wrote %2 of %3 bytes to %4)")
+                          .arg(mFile->errorString())
+                          .arg(written)
+                          .arg(expected)
+                          .arg(mFile->fileName()));
         return;
     }
     if (mVerifyChecksum && mHash)
@@ -590,12 +599,17 @@ void Receiver::handleStripedPayload(const QByteArray& payload)
         return;
 
     if (!mFile->seek(offset)) {
-        failDownloadWrite(tr("Failed to seek download file for striped write."));
+        failDownloadWrite(tr("Failed to seek download file for striped write: %1 (%2)")
+                          .arg(mFile->fileName(), mFile->errorString()));
         return;
     }
     const qint64 written = mFile->write(chunk);
     if (written != len) {
-        failDownloadWrite(tr("Failed to write striped download data to disk."));
+        failDownloadWrite(tr("Failed to write striped download data to disk: %1 (wrote %2 of %3 bytes to %4)")
+                          .arg(mFile->errorString())
+                          .arg(written)
+                          .arg(len)
+                          .arg(mFile->fileName()));
         return;
     }
 
