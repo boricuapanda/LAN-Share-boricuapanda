@@ -49,6 +49,8 @@ Receiver::Receiver(const Device& sender, QTcpSocket* socket, QObject* parent)
     mRegisteredTransferId = false;
     mAttachProxy = false;
     mFinishPending = false;
+    mLastProgressAckMs = 0;
+    mLastProgressAckPercent = -1;
     mHash = mVerifyChecksum ? new QCryptographicHash(QCryptographicHash::Sha256) : nullptr;
 
     mInfo->setState(TransferState::Waiting);
@@ -166,9 +168,45 @@ void Receiver::sendOffsetAck(qint64 offset, int acceptedStreams)
                      {"protocol", TransferProtocol::CurrentVersion},
                      {"parallel_supported", parallelReady},
                      {"parallel_ready", parallelReady},
+                     {"progress_ack_ready", true},
+                     {"finish_ack_ready", true},
                      {"accepted_streams", parallelReady ? acceptedStreams : 1}});
     const QByteArray data = QJsonDocument(obj).toJson(QJsonDocument::Compact);
     writePacket(data.size(), PacketType::OffsetAck, data);
+}
+
+void Receiver::sendProgressAck(bool force)
+{
+    if (mAttachProxy || !mSocket || mSocket->state() != QAbstractSocket::ConnectedState || mFileSize <= 0)
+        return;
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const int percent = static_cast<int>(mBytesRead * 100 / mFileSize);
+    if (!force && percent == mLastProgressAckPercent && now - mLastProgressAckMs < 250)
+        return;
+
+    mLastProgressAckMs = now;
+    mLastProgressAckPercent = percent;
+    QJsonObject obj({{"progress_ack", true},
+                     {"protocol", TransferProtocol::CurrentVersion},
+                     {"bytes_received", mBytesRead},
+                     {"size", mFileSize}});
+    const QByteArray data = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+    writePacket(data.size(), PacketType::OffsetAck, data);
+}
+
+void Receiver::sendFinishAck()
+{
+    if (mAttachProxy || !mSocket || mSocket->state() != QAbstractSocket::ConnectedState)
+        return;
+
+    QJsonObject obj({{"finish_ack", true},
+                     {"protocol", TransferProtocol::CurrentVersion},
+                     {"bytes_received", mBytesRead},
+                     {"size", mFileSize}});
+    const QByteArray data = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+    writePacket(data.size(), PacketType::OffsetAck, data);
+    mSocket->flush();
 }
 
 void Receiver::hashExistingPartFile()
@@ -226,6 +264,8 @@ void Receiver::finalizeDownload()
     TransferJournal::instance()->remove(mTransferId);
     AppLog::transferEvent(mTransferId, QStringLiteral("finish"), mSenderDev.displayAddress(),
                           QStringLiteral("-"), QStringLiteral("0"), mFinalFilePath);
+    sendProgressAck(true);
+    sendFinishAck();
     mSocket->disconnectFromHost();
     emit mInfo->done();
 }
@@ -311,6 +351,8 @@ void Receiver::processHeaderPacket(QByteArray& data)
     mPartFilePath = mFinalFilePath + ".part";
     mBytesRead = 0;
     mAcceptedStreams = 1;
+    mLastProgressAckMs = 0;
+    mLastProgressAckPercent = -1;
 
     if (mResumePartialDownloads && QFile::exists(mPartFilePath)) {
         const qint64 partSize = QFileInfo(mPartFilePath).size();
@@ -438,6 +480,7 @@ void Receiver::processDataPacket(QByteArray& data)
 
     mInfo->setProgress( (int)(mBytesRead * 100 / mFileSize) );
     mInfo->setBytesTransferred(mBytesRead);
+    sendProgressAck();
 }
 
 void Receiver::adoptDataSocket(QTcpSocket* socket)
@@ -542,6 +585,7 @@ void Receiver::handleStripedPayload(const QByteArray& payload)
         mBytesRead = endOffset;
     mInfo->setProgress((int)(mBytesRead * 100 / mFileSize));
     mInfo->setBytesTransferred(mBytesRead);
+    sendProgressAck();
 
     if (mFinishPending && mBytesRead >= mFileSize) {
         const QString actual = Util::fileSha256(mFile->fileName()).toLower();

@@ -55,6 +55,8 @@ Sender::Sender(const Device& receiver, const QString& folderName, const QString&
     mFinishing = false;
     mFinishPending = false;
     mSendScheduled = false;
+    mReceiverProgressAcks = false;
+    mReceiverFinishAck = false;
     mRequestedStreams = Settings::instance()->getParallelStreams();
     if (Settings::instance()->getTlsEnabled() && mRequestedStreams > 1) {
         AppLog::write("transfer",
@@ -182,6 +184,8 @@ void Sender::retryConnect(int attempt)
     mFinishing = false;
     mFinishPending = false;
     mSendScheduled = false;
+    mReceiverProgressAcks = false;
+    mReceiverFinishAck = false;
     mStripedSocketIndex = 0;
     mOffsetAckTimer->stop();
     clearReadBuffer();
@@ -296,8 +300,11 @@ void Sender::onDisconnected()
         mInfo->getState() == TransferState::Finish) {
         return;
     }
-    if (mFinishing || mFinishPending || mBytesRemaining == 0)
+    if (mFinishing || mFinishPending || mBytesRemaining == 0) {
+        if (mFinishing)
+            completeUpload();
         return;
+    }
 
     closeDataSockets();
     resetIdleTimer();
@@ -375,11 +382,31 @@ void Sender::finish()
     mFinishing = true;
     if (mSocket)
         mSocket->flush();
+
+    if (!mReceiverFinishAck)
+        completeUpload();
+}
+
+void Sender::completeUpload()
+{
+    if (mInfo->getState() == TransferState::Failed || mInfo->getState() == TransferState::Cancelled ||
+        mInfo->getState() == TransferState::Finish || mInfo->getState() == TransferState::Disconnected) {
+        return;
+    }
+
+    mFinishing = false;
+    mFinishPending = false;
+    mSendScheduled = false;
+    if (mFileSize > 0) {
+        mInfo->setBytesTransferred(mFileSize);
+        mInfo->setProgress(100);
+    }
     mInfo->setState(TransferState::Finish);
     TransferJournal::instance()->remove(mTransferId);
     AppLog::transferEvent(mTransferId, QStringLiteral("finish"), mReceiverDev.displayAddress(),
                           QStringLiteral("-"), QString::number(mInfo->getAttempt()), mFilePath);
-    mFile->close();
+    if (mFile)
+        mFile->close();
     emit mInfo->done();
 }
 
@@ -419,8 +446,10 @@ void Sender::sendData()
     if (mBytesRemaining < 0)
         mBytesRemaining = 0;
 
-    mInfo->setProgress( (int) ((mFileSize-mBytesRemaining) * 100 / mFileSize) );
-    mInfo->setBytesTransferred(mFileSize - mBytesRemaining);
+    if (!mReceiverProgressAcks) {
+        mInfo->setProgress( (int) ((mFileSize-mBytesRemaining) * 100 / mFileSize) );
+        mInfo->setBytesTransferred(mFileSize - mBytesRemaining);
+    }
 
     writePacket(static_cast<qint32>(bytesRead), PacketType::Data, mFileBuff.left(bytesRead));
 
@@ -603,8 +632,10 @@ void Sender::sendStripedData()
 
     mNextStripedOffset += chunk.size();
     mBytesRemaining -= chunk.size();
-    mInfo->setProgress((int)((mFileSize - mBytesRemaining) * 100 / mFileSize));
-    mInfo->setBytesTransferred(mFileSize - mBytesRemaining);
+    if (!mReceiverProgressAcks) {
+        mInfo->setProgress((int)((mFileSize - mBytesRemaining) * 100 / mFileSize));
+        mInfo->setBytesTransferred(mFileSize - mBytesRemaining);
+    }
     ++mStripedSocketIndex;
 
     if (mBytesRemaining == 0) {
@@ -748,10 +779,27 @@ void Sender::processOffsetAckPacket(QByteArray& data)
         return;
     }
 
+    QJsonObject obj = QJsonDocument::fromJson(data).object();
+    if (obj.value(QStringLiteral("progress_ack")).toBool(false)) {
+        const qint64 bytesReceived = qBound<qint64>(0, obj.value(QStringLiteral("bytes_received")).toVariant().toLongLong(), mFileSize);
+        mInfo->setBytesTransferred(bytesReceived);
+        if (mFileSize > 0)
+            mInfo->setProgress(static_cast<int>(bytesReceived * 100 / mFileSize));
+        return;
+    }
+
+    if (obj.value(QStringLiteral("finish_ack")).toBool(false)) {
+        const qint64 bytesReceived = qBound<qint64>(0, obj.value(QStringLiteral("bytes_received")).toVariant().toLongLong(), mFileSize);
+        mInfo->setBytesTransferred(bytesReceived);
+        if (mFileSize > 0)
+            mInfo->setProgress(static_cast<int>(bytesReceived * 100 / mFileSize));
+        completeUpload();
+        return;
+    }
+
     if (!mWaitingForOffsetAck)
         return;
 
-    QJsonObject obj = QJsonDocument::fromJson(data).object();
     if (obj.value(QStringLiteral("busy")).toBool(false)) {
         const int retryAfterMs = obj.value(QStringLiteral("retry_after_ms")).toInt(1000);
         mWaitingForOffsetAck = false;
@@ -775,6 +823,10 @@ void Sender::processOffsetAckPacket(QByteArray& data)
 
     const qint64 offset = obj.value("offset").toVariant().toLongLong();
     const int peerProtocol = obj.value(QStringLiteral("protocol")).toInt(1);
+    mReceiverProgressAcks = obj.value(QStringLiteral("progress_ack_ready")).toBool(false)
+                            && peerProtocol >= TransferProtocol::CurrentVersion;
+    mReceiverFinishAck = obj.value(QStringLiteral("finish_ack_ready")).toBool(false)
+                         && peerProtocol >= TransferProtocol::CurrentVersion;
     const bool peerSupportsParallel = obj.value("parallel_supported").toBool(false)
                                       && obj.value(QStringLiteral("parallel_ready")).toBool(false)
                                       && peerProtocol >= TransferProtocol::CurrentVersion;

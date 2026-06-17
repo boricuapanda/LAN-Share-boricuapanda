@@ -50,6 +50,8 @@ private Q_SLOTS:
 
 private:
     void sendOffsetAck(qint64 offset, int acceptedStreams);
+    void sendProgressAck(bool force = false);
+    void sendFinishAck();
     void hashExistingPartFile();
     void removePartFile();
     void finalizeDownload();
@@ -77,6 +79,8 @@ private:
     bool mRegisteredTransferId;
     bool mAttachProxy;
     bool mFinishPending;
+    qint64 mLastProgressAckMs;
+    int mLastProgressAckPercent;
     QString mPendingFinishHash;
     QHash<QTcpSocket*, QByteArray> mDataBuffers;
     QHash<QTcpSocket*, qint32> mDataPacketSizes;

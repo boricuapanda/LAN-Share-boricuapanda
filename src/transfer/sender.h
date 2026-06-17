@@ -52,6 +52,7 @@ private Q_SLOTS:
 
 private:
     void finish();
+    void completeUpload();
     void sendData();
     void scheduleSendData(int delayMs = 1);
     void sendStripedData();
@@ -90,6 +91,8 @@ private:
     bool mFinishing;
     bool mFinishPending;
     bool mSendScheduled;
+    bool mReceiverProgressAcks;
+    bool mReceiverFinishAck;
     int mRequestedStreams;
     int mActiveStreams;
     int mStripedSocketIndex;
