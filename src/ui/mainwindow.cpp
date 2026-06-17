@@ -774,6 +774,10 @@ void MainWindow::updateSidebarNavSelection(bool transfersActive)
         mNavTransfersBtn->setChecked(transfersActive);
     if (mNavSettingsBtn)
         mNavSettingsBtn->setChecked(!transfersActive);
+    if (mSettingsAction)
+        mSettingsAction->setVisible(transfersActive);
+    if (mTransfersAction)
+        mTransfersAction->setVisible(!transfersActive);
 }
 
 void MainWindow::setupActions()

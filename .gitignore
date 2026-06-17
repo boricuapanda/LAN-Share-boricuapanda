@@ -37,6 +37,15 @@ build
 tests/build
 tests/ui_build
 
+# In-tree qmake build (when building from src/)
+src/LANShare
+src/Makefile
+src/.qmake.stash
+src/moc_predefs.h
+
+# Local tooling (e.g. downloaded gh CLI)
+.tools/
+
 # Local / editor artifacts
 cursor_chat_*.json
 *.cursor-chat.json

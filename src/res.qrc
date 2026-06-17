@@ -19,6 +19,10 @@
         <file>img/systray-icon.png</file>
         <file>img/file.png</file>
         <file>img/folder.png</file>
+        <file>img/chevron-down.xpm</file>
+        <file>img/chevron-up.xpm</file>
+        <file>img/chevron-down-light.xpm</file>
+        <file>img/chevron-up-light.xpm</file>
         <file>style/app.qss</file>
     </qresource>
 </RCC>

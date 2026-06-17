@@ -38,6 +38,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QUuid>
 #include <QVBoxLayout>
@@ -188,6 +189,11 @@ void SettingsDialog::setupStitchUi()
     ui->pushButton->setText(tr("Save Changes"));
 
     ui->tabWidget->setDocumentMode(true);
+    ui->tabWidget->setUsesScrollButtons(false);
+    ui->tabWidget->tabBar()->setUsesScrollButtons(false);
+    ui->tabWidget->tabBar()->setExpanding(true);
+    ui->tabWidget->tabBar()->setDrawBase(false);
+    ui->tabWidget->tabBar()->setElideMode(Qt::ElideNone);
 
     reorganizeSettingsTabs();
     styleSettingsCards();

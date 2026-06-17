@@ -1,0 +1,14 @@
+/* XPM */
+static const char *chevron_down_light_xpm[] = {
+"12 8 2 1",
+"  c None",
+". c #C5DFF0",
+"            ",
+" .        . ",
+" ..      .. ",
+"  ..    ..  ",
+"   ..  ..   ",
+"    ....    ",
+"     ..     ",
+"            "
+};

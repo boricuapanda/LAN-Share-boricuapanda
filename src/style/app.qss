@@ -327,28 +327,57 @@ SettingsDialog QTabWidget::pane {
     padding: 0;
 }
 
-SettingsDialog QTabBar::tab {
-    background: transparent;
-    color: #2a3440;
+SettingsDialog QTabBar {
+    background: #e9eef6;
+    border: 1px solid #c5d0dc;
+    border-radius: 7px;
+}
+
+SettingsDialog QTabBar::scroller {
+    width: 0;
+}
+
+SettingsDialog QTabBar QToolButton {
+    width: 0;
+    height: 0;
     border: none;
-    border-bottom: 2px solid transparent;
+    margin: 0;
+    padding: 0;
+}
+
+SettingsDialog QTabBar::tab {
+    background: #e9eef6;
+    color: #2f3945;
+    border: none;
+    border-right: 1px solid #d1dae5;
+    border-bottom: 3px solid transparent;
     border-radius: 0;
-    padding: 10px 24px 9px 24px;
-    margin-right: 10px;
-    min-width: 82px;
+    padding: 11px 8px 10px 8px;
+    margin: 0;
+    min-width: 0;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
+}
+
+SettingsDialog QTabBar::tab:first {
+    border-top-left-radius: 6px;
+}
+
+SettingsDialog QTabBar::tab:last {
+    border-right: none;
+    border-top-right-radius: 6px;
 }
 
 SettingsDialog QTabBar::tab:selected {
+    background: #ffffff;
     color: #005a7d;
-    border-bottom: 2px solid #006b95;
+    border-bottom: 3px solid #006b95;
     font-weight: 700;
 }
 
 SettingsDialog QTabBar::tab:hover:!selected {
     color: #006b95;
-    background: #e8f2f7;
+    background: #f4f8fb;
 }
 
 QLabel#hintLabel,
@@ -478,13 +507,15 @@ QComboBox:disabled {
 }
 
 QSpinBox {
-    padding-right: 28px;
+    padding-left: 10px;
+    padding-right: 36px;
 }
 
 QSpinBox::up-button {
     subcontrol-origin: border;
     subcontrol-position: top right;
-    width: 25px;
+    width: 28px;
+    margin: 1px 1px 0 0;
     background-color: #f1f4f8;
     border-left: 1px solid #d3dbe5;
     border-bottom: 1px solid #d3dbe5;
@@ -494,7 +525,8 @@ QSpinBox::up-button {
 QSpinBox::down-button {
     subcontrol-origin: border;
     subcontrol-position: bottom right;
-    width: 25px;
+    width: 28px;
+    margin: 0 1px 1px 0;
     background-color: #f1f4f8;
     border-left: 1px solid #d3dbe5;
     border-bottom-right-radius: 3px;
@@ -508,6 +540,18 @@ QSpinBox::down-button:hover {
 QSpinBox::up-button:pressed,
 QSpinBox::down-button:pressed {
     background-color: #d7e4ee;
+}
+
+QSpinBox::up-arrow {
+    image: url(:/img/chevron-up.xpm);
+    width: 12px;
+    height: 8px;
+}
+
+QSpinBox::down-arrow {
+    image: url(:/img/chevron-down.xpm);
+    width: 12px;
+    height: 8px;
 }
 
 QComboBox {
@@ -529,13 +573,9 @@ QComboBox::drop-down:hover {
 }
 
 QComboBox::down-arrow {
-    width: 10px;
-    height: 10px;
-    image: none;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 6px solid #4a5d73;
-    margin-right: 10px;
+    image: url(:/img/chevron-down.xpm);
+    width: 12px;
+    height: 8px;
 }
 
 QComboBox QAbstractItemView {
